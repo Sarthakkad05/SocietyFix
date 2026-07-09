@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         body: bodyText.trim(),
         is_important: isImportant,
         author: authorName,
+        created_by: user.id,
       });
 
     if (insertErr) {

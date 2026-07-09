@@ -410,7 +410,7 @@ export default function ResidentDashboard() {
         category: values.category,
         priority: values.priority,
         description: values.description,
-        status: "open",
+        status: "Open",
         photo_url: photoUrl,
       })
       .select(`

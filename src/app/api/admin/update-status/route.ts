@@ -49,8 +49,17 @@ export async function POST(request: Request) {
     }
 
     const originalStatus = complaint.status.toLowerCase();
-    const nextStatus = newStatus.toLowerCase();
-    const statusChanged = originalStatus !== nextStatus;
+    
+    // Map newStatus to exact DB check constraint values: "Open", "In Progress", "Resolved"
+    let dbStatus = "Open";
+    const nextStatusLower = newStatus.toLowerCase();
+    if (nextStatusLower === "progress" || nextStatusLower === "in progress" || nextStatusLower === "in_progress") {
+      dbStatus = "In Progress";
+    } else if (nextStatusLower === "resolved") {
+      dbStatus = "Resolved";
+    }
+    
+    const statusChanged = originalStatus !== dbStatus.toLowerCase();
 
     // Resolved tickets are locked
     if (originalStatus === "resolved") {
@@ -63,8 +72,9 @@ export async function POST(request: Request) {
         .from("complaint_status_history")
         .insert({
           complaint_id: complaintId,
-          status: nextStatus,
+          status: dbStatus,
           note: note.trim() || null,
+          actor_id: user.id,
         });
 
       if (historyErr) {
@@ -76,7 +86,7 @@ export async function POST(request: Request) {
     const { error: updateErr } = await supabase
       .from("complaints")
       .update({
-        status: nextStatus,
+        status: dbStatus,
         priority: newPriority,
         updated_at: new Date().toISOString(),
       })
@@ -112,7 +122,7 @@ export async function POST(request: Request) {
         residentName,
         complaintId,
         complaint.category,
-        nextStatus,
+        dbStatus,
         note ? note.trim() : null
       );
     }
