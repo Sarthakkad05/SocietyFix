@@ -1,5 +1,3 @@
-"use strict";
-
 "use client";
 
 import { useState } from "react";
@@ -61,26 +59,26 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen py-16 px-4 max-w-md mx-auto flex flex-col justify-center">
+    <main className="min-h-screen py-12 px-4 max-w-md mx-auto flex flex-col justify-center gap-6">
       {/* Header */}
-      <div className="text-center mb-8">
+      <div className="text-center">
         <Link href="/" className="utility-caps text-[var(--accent)] font-semibold tracking-widest hover:underline">
           ← BACK TO DIRECTORY
         </Link>
-        <h1 className="text-3xl font-bold mt-2 text-[var(--ink)]">SOCIETY-FIX</h1>
-        <p className="font-utility text-xs opacity-60 uppercase mt-1">LEDGER LOGIN PORTAL</p>
+        <h1 className="text-3xl font-bold mt-4 text-[var(--ink)]">SOCIETY-FIX</h1>
+        <p className="font-utility text-xs text-[var(--ink-muted)] uppercase mt-1">LEDGER LOGIN PORTAL</p>
       </div>
 
       <div className="ledger-board p-6 bg-[var(--surface)]">
         {error && (
-          <div className="border border-[var(--status-open)] text-[var(--status-open)] p-3 font-utility text-xs mb-4 bg-[#fdf2f0]">
+          <div className="border border-[var(--status-open)] text-[var(--status-open)] p-3 font-utility text-xs mb-4 bg-[var(--status-open)]/10 rounded-[6px]">
             ERROR: {error.toUpperCase()}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label htmlFor="login-email" className="utility-caps text-xs block mb-1 text-[var(--ink)] opacity-80">
+            <label htmlFor="login-email" className="utility-caps text-xs block mb-2 text-[var(--ink)] opacity-80">
               Email Address
             </label>
             <input
@@ -95,7 +93,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="login-password" className="utility-caps text-xs block mb-1 text-[var(--ink)] opacity-80">
+            <label htmlFor="login-password" className="utility-caps text-xs block mb-2 text-[var(--ink)] opacity-80">
               Password
             </label>
             <input
@@ -112,14 +110,14 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn-minimal mt-4 w-full disabled:opacity-50"
+            className="btn-minimal mt-4 w-full disabled:opacity-50 rounded-[6px]"
           >
             {loading ? "AUTHENTICATING..." : "ACCESS PORTAL"}
           </button>
         </form>
 
         <div className="text-center mt-6 pt-4 border-t border-[var(--border)]">
-          <p className="text-xs text-[var(--ink)] opacity-70">
+          <p className="text-xs text-[var(--ink-muted)]">
             NEW TENANT?{" "}
             <Link href="/signup" className="font-utility text-[var(--accent)] hover:underline font-bold">
               REGISTER HERE
@@ -128,8 +126,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="ledger-tab ledger-tab--accent mt-8 text-center text-xs opacity-75">
-        <p className="font-utility text-[var(--ink)]">
+      <div className="ledger-tab ledger-tab--accent text-center text-xs">
+        <p className="font-utility text-[var(--ink-muted)]">
           SUPABASE SECURED ACCESS ENVIRONMENT
         </p>
       </div>

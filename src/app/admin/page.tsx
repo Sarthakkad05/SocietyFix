@@ -2,9 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import Navigation from "@/app/components/Navigation";
+import { LedgerRowSkeleton, StatBlockSkeleton, Skeleton } from "@/app/components/Skeleton";
+import ConfirmDialog from "@/app/components/ConfirmDialog";
+import { toast } from "sonner";
+import { FileSearch, SlidersHorizontal } from "lucide-react";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface Profile {
@@ -103,7 +107,9 @@ export default function AdminDashboard() {
   const [newStatus, setNewStatus] = useState<string>("open");
   const [note, setNote] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
+
+  // Resolution Confirm dialog
+  const [showConfirmResolve, setShowConfirmResolve] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -177,18 +183,10 @@ export default function AdminDashboard() {
     fetchAdminSession();
   }, [router]);
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
   // Save priority/status changes to Supabase
-  const handleSaveChanges = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSaveChanges = async () => {
     if (!selectedComplaint) return;
     setSaving(true);
-    setSaveError("");
 
     try {
       const res = await fetch("/api/admin/update-status", {
@@ -209,18 +207,30 @@ export default function AdminDashboard() {
 
       // Refresh master list
       await fetchComplaints();
+      toast.success("ENTRY MAINTENANCE UPDATE RECORDED");
 
       // Reset & Close
       setSelectedComplaint(null);
       setNote("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "FAILED TO SAVE CHANGES.";
-      setSaveError(msg);
+      toast.error(`ERROR: ${msg.toUpperCase()}`);
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSaveChangesClick = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedComplaint) return;
+    
+    // Check if status is set to resolved
+    if (newStatus.toLowerCase() === "resolved") {
+      setShowConfirmResolve(true);
+    } else {
+      executeSaveChanges();
+    }
+  };
 
   // Open dialog config
   const openEditDialog = (comp: Complaint) => {
@@ -228,12 +238,11 @@ export default function AdminDashboard() {
     setNewPriority(comp.priority);
     setNewStatus(comp.status);
     setNote("");
-    setSaveError("");
   };
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center font-utility text-xs">
+      <div className="min-h-screen flex items-center justify-center font-utility text-xs text-[var(--ink-muted)]">
         LOADING ADMINISTRATIVE CONTEXT...
       </div>
     );
@@ -247,17 +256,22 @@ export default function AdminDashboard() {
   const overdueCount = complaints.filter(isOverdue).length;
 
   const categoriesList = ["Plumbing", "Electrical", "Cleaning", "Security", "Parking", "Other"];
-  const categoryChartData = categoriesList.map((cat) => ({
-    category: cat.toUpperCase(),
-    Complaints: complaints.filter((c) => c.category === cat).length,
-  }));
+  
+  // Custom stacked bar segments
+  const categoryChartData = categoriesList.map((cat) => {
+    const catComps = complaints.filter((c) => c.category === cat);
+    return {
+      category: cat.toUpperCase(),
+      OPEN: catComps.filter((c) => c.status.toLowerCase() === "open").length,
+      PROGRESS: catComps.filter((c) => ["progress", "in_progress"].includes(c.status.toLowerCase())).length,
+      RESOLVED: catComps.filter((c) => c.status.toLowerCase() === "resolved").length,
+    };
+  });
 
   // Filter list
   const filteredComplaints = complaints.filter((c) => {
-    // Category Filter
     if (catFilter !== "ALL" && c.category !== catFilter) return false;
 
-    // Status Filter
     if (statusFilter !== "ALL") {
       const matchLower = statusFilter.toLowerCase();
       if (matchLower === "progress") {
@@ -267,7 +281,6 @@ export default function AdminDashboard() {
       }
     }
 
-    // Unit Search Filter
     if (searchUnit.trim() !== "") {
       const cleanedSearch = searchUnit.toLowerCase();
       const matchUnit = c.apartment_no.toLowerCase().includes(cleanedSearch);
@@ -275,7 +288,6 @@ export default function AdminDashboard() {
       if (!matchUnit && !matchName) return false;
     }
 
-    // Date Range Filter
     if (startDate) {
       const start = new Date(startDate).setHours(0, 0, 0, 0);
       const created = new Date(c.created_at).getTime();
@@ -303,10 +315,11 @@ export default function AdminDashboard() {
 
   return (
     <>
+      <Navigation />
       {/* Dialog overlay and backdrop */}
       {selectedComplaint && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={(e) => {
             if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
               setSelectedComplaint(null);
@@ -315,22 +328,22 @@ export default function AdminDashboard() {
         >
           <div
             ref={dialogRef}
-            className="ledger-board bg-[var(--surface)] w-full max-w-2xl max-h-[90vh] flex flex-col"
+            className="ledger-board bg-[var(--surface)] w-full max-w-2xl max-h-[90vh] flex flex-col rounded-[6px]"
           >
             {/* Dialog Header */}
-            <div className="bg-[var(--ink)] text-[var(--bg)] px-5 py-4 flex justify-between items-start flex-shrink-0">
+            <div className="bg-[var(--surface-2)] border-b border-[var(--border)] text-[var(--ink)] px-5 py-4 flex justify-between items-start flex-shrink-0">
               <div>
-                <span className="utility-caps text-[10px] text-[var(--accent)] font-semibold tracking-wider">
+                <span className="utility-caps text-[10px] text-[var(--ink-muted)] font-semibold tracking-wider">
                   ENTRY MAINTENANCE SHEET
                 </span>
-                <h3 className="text-lg font-bold font-display uppercase">
+                <h3 className="text-lg font-bold font-display uppercase mt-1">
                   COMPLAINT REF: {selectedComplaint.id}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedComplaint(null)}
-                className="font-utility text-xs text-[var(--bg)] opacity-60 hover:opacity-100 mt-1"
+                className="font-utility text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] mt-1"
               >
                 [ESC]
               </button>
@@ -338,25 +351,24 @@ export default function AdminDashboard() {
 
             {/* Dialog Body (Scrollable) */}
             <div className="p-5 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-              
               {/* Left Column: Complaint Details */}
               <div className="flex flex-col gap-4">
                 <div>
-                  <span className="utility-caps text-[10px] block opacity-50 mb-0.5">RESIDENT</span>
+                  <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-1">RESIDENT</span>
                   <div className="font-body text-sm font-semibold text-[var(--ink)]">
                     {getResidentName(selectedComplaint)} (UNIT: {selectedComplaint.apartment_no})
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="utility-caps text-[10px] block opacity-50 mb-0.5">CATEGORY</span>
+                    <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-1">CATEGORY</span>
                     <span className="font-utility text-xs font-bold uppercase text-[var(--ink)]">
                       {selectedComplaint.category}
                     </span>
                   </div>
                   <div>
-                    <span className="utility-caps text-[10px] block opacity-50 mb-0.5">DATE FILED</span>
+                    <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-1">DATE FILED</span>
                     <span className="font-utility text-xs text-[var(--ink)]">
                       {fmtDate(selectedComplaint.created_at)}
                     </span>
@@ -364,20 +376,20 @@ export default function AdminDashboard() {
                 </div>
 
                 <div>
-                  <span className="utility-caps text-[10px] block opacity-50 mb-0.5">DEFECT REPORT</span>
-                  <p className="font-body text-xs text-[var(--ink)] leading-relaxed bg-[#f9f9f8] p-3 border border-[var(--border)] whitespace-pre-wrap">
+                  <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-1">DEFECT REPORT</span>
+                  <p className="font-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface-2)] p-3 border border-[var(--border)] rounded-[6px] whitespace-pre-wrap">
                     {selectedComplaint.description}
                   </p>
                 </div>
 
                 {selectedComplaint.photo_url && (
                   <div>
-                    <span className="utility-caps text-[10px] block opacity-50 mb-1">EVIDENCE PHOTO</span>
+                    <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-1">EVIDENCE PHOTO</span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedComplaint.photo_url}
                       alt="Complaint Evidence"
-                      className="w-full h-32 object-cover border border-[var(--border)] cursor-pointer"
+                      className="w-full h-32 object-cover border border-[var(--border)] rounded-[6px] cursor-pointer"
                       onClick={() => window.open(selectedComplaint.photo_url!, "_blank")}
                     />
                   </div>
@@ -385,10 +397,10 @@ export default function AdminDashboard() {
 
                 {/* History Timeline */}
                 <div>
-                  <span className="utility-caps text-[10px] block opacity-50 mb-2">STATUS TIMELINE</span>
+                  <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-2">STATUS TIMELINE</span>
                   <div className="border-l border-[var(--border)] pl-4 ml-1.5 space-y-3 max-h-[150px] overflow-y-auto">
                     {selectedComplaint.complaint_status_history?.length === 0 ? (
-                      <div className="font-utility text-[10px] opacity-40">NO PREVIOUS HISTORY ENTRIES.</div>
+                      <div className="font-utility text-[10px] text-[var(--ink-muted)] opacity-60">NO PREVIOUS HISTORY ENTRIES.</div>
                     ) : (
                       [...(selectedComplaint.complaint_status_history ?? [])]
                         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -399,11 +411,11 @@ export default function AdminDashboard() {
                               {fmtStatus(h.status)}
                             </div>
                             {h.note && (
-                              <p className="text-[10px] font-body text-[var(--ink)] opacity-80 italic mt-0.5">
+                              <p className="text-[10px] font-body text-[var(--ink-muted)] italic mt-0.5">
                                 &quot;{h.note}&quot;
                               </p>
                             )}
-                            <p className="text-[9px] font-utility text-[var(--ink)] opacity-40">
+                            <p className="text-[9px] font-utility text-[var(--ink-muted)] opacity-60">
                               {fmtDateTime(h.created_at)}
                             </p>
                           </div>
@@ -415,20 +427,14 @@ export default function AdminDashboard() {
 
               {/* Right Column: Update Form */}
               <div className="flex flex-col justify-between border-t md:border-t-0 md:border-l border-[var(--border)] pt-5 md:pt-0 md:pl-6">
-                <form onSubmit={handleSaveChanges} className="flex flex-col gap-4">
-                  <h4 className="font-display font-bold text-xs uppercase tracking-wide border-b border-[var(--border)] pb-2 mb-1">
+                <form onSubmit={handleSaveChangesClick} className="flex flex-col gap-4">
+                  <h4 className="font-display font-bold text-xs uppercase tracking-wide border-b border-[var(--border)] pb-2 mb-1 text-[var(--ink)]">
                     MAINTENANCE CONTROLS
                   </h4>
 
-                  {saveError && (
-                    <div className="border border-[var(--status-open)] text-[var(--status-open)] p-2.5 font-utility text-[10px] bg-[#fdf2f0]">
-                      ERROR: {saveError.toUpperCase()}
-                    </div>
-                  )}
-
                   {/* Priority select */}
                   <div>
-                    <label htmlFor="edit-priority" className="utility-caps text-[10px] block mb-1 opacity-70">
+                    <label htmlFor="edit-priority" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-75">
                       Priority Tier
                     </label>
                     <select
@@ -446,7 +452,7 @@ export default function AdminDashboard() {
 
                   {/* Status select */}
                   <div>
-                    <label htmlFor="edit-status" className="utility-caps text-[10px] block mb-1 opacity-70">
+                    <label htmlFor="edit-status" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-75">
                       Status State
                     </label>
                     <select
@@ -464,7 +470,7 @@ export default function AdminDashboard() {
 
                   {/* Note block */}
                   <div>
-                    <label htmlFor="edit-note" className="utility-caps text-[10px] block mb-1 opacity-70">
+                    <label htmlFor="edit-note" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-75">
                       Status Note / Action Taken
                     </label>
                     <textarea
@@ -479,14 +485,14 @@ export default function AdminDashboard() {
                   </div>
 
                   {selectedComplaint.status.toLowerCase() === "resolved" ? (
-                    <div className="border border-[var(--status-resolved)] text-[var(--status-resolved)] p-3 font-utility text-[10px] bg-[#f0fbf5] text-center leading-relaxed">
+                    <div className="border border-[var(--status-resolved)] text-[var(--status-resolved)] p-3 font-utility text-[10px] bg-[var(--status-resolved)]/10 rounded-[6px] text-center leading-relaxed">
                       ★ TICKET CLOSED ★<br />RESOLVED ENTRIES ARE ARCHIVED AND READ-ONLY.
                     </div>
                   ) : (
                     <button
                       type="submit"
                       disabled={saving}
-                      className="btn-minimal btn-minimal-accent w-full mt-2 disabled:opacity-50"
+                      className="btn-minimal btn-minimal-accent w-full mt-2 disabled:opacity-50 rounded-[6px]"
                     >
                       {saving ? "COMMITTING..." : "COMMIT UPDATE"}
                     </button>
@@ -496,308 +502,337 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={() => setSelectedComplaint(null)}
-                  className="btn-minimal-secondary w-full text-xs py-2 mt-4"
+                  className="btn-minimal-secondary w-full text-xs py-2 mt-4 rounded-[6px]"
                 >
                   CANCEL
                 </button>
               </div>
-
             </div>
           </div>
         </div>
       )}
 
-      <main className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto flex flex-col justify-between">
+      {/* Confirmation Dialog Resolve */}
+      <ConfirmDialog
+        isOpen={showConfirmResolve}
+        title="Mark as Resolved?"
+        description="Are you sure you want to resolve this complaint? Marked entries are archived and cannot be edited in the maintenance sheets thereafter."
+        onConfirm={() => {
+          setShowConfirmResolve(false);
+          executeSaveChanges();
+        }}
+        onCancel={() => setShowConfirmResolve(false)}
+      />
+
+      <main className="min-h-[calc(100vh-64px)] py-12 px-4 md:px-6 max-w-[1280px] mx-auto flex flex-col gap-12">
         {/* Top Header */}
-        <header className="border-b border-[var(--border)] pb-6 mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <header className="border-b border-[var(--border)] pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <span className="utility-caps text-[var(--accent)] font-semibold tracking-widest text-xs">
+            <span className="utility-caps text-[var(--ink-muted)] font-semibold tracking-widest text-xs">
               ADMINISTRATOR BOARD REGISTER
             </span>
-            <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)]">
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)] mt-1">
               SUPERINTENDENT JOURNAL
             </h1>
           </div>
-          <div className="flex gap-3">
-            <Link 
-              href="/admin/notices"
-              className="btn-minimal-secondary text-xs py-2 px-4"
-            >
-              MANAGE NOTICES
-            </Link>
-            <Link 
-              href="/notices"
-              className="btn-minimal-secondary text-xs py-2 px-4"
-            >
-              VIEW CORKBOARD
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="btn-minimal text-xs py-2 px-4"
-            >
-              EXIT JOURNAL
-            </button>
-          </div>
         </header>
 
-        {/* Ledger Stat blocks */}
-        <section className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-          <div className="ledger-tab">
-            <span className="utility-caps text-[10px] text-[var(--ink)] opacity-60">TOTAL REGISTERED</span>
-            <div className="font-utility font-bold text-3xl mt-1 text-[var(--ink)]">
-              {String(totalComplaintsCount).padStart(2, "0")}
-            </div>
-          </div>
-          
-          <div className="ledger-tab ledger-tab--open">
-            <span className="utility-caps text-[10px] text-[var(--status-open)] font-semibold">OPEN ENTRIES</span>
-            <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-open)]">
-              {String(openCount).padStart(2, "0")}
-            </div>
-          </div>
-          
-          <div className="ledger-tab ledger-tab--progress">
-            <span className="utility-caps text-[10px] text-[var(--status-progress)] font-semibold">IN PROGRESS</span>
-            <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-progress)]">
-              {String(progressCount).padStart(2, "0")}
-            </div>
-          </div>
-          
-          <div className="ledger-tab ledger-tab--resolved">
-            <span className="utility-caps text-[10px] text-[var(--status-resolved)] font-semibold">RESOLVED</span>
-            <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-resolved)]">
-              {String(resolvedCount).padStart(2, "0")}
-            </div>
-          </div>
-
-          <div className="ledger-tab ledger-tab--open border-[var(--status-open)]">
-            <span className="utility-caps text-[10px] text-[var(--status-open)] font-bold animate-pulse">★ OVERDUE</span>
-            <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-open)]">
-              {String(overdueCount).padStart(2, "0")}
-            </div>
-          </div>
-        </section>
-
-        {/* Category Report Graph */}
-        <section className="ledger-board p-5 bg-[var(--surface)] mb-10">
-          <h2 className="text-xs font-bold font-display border-b border-[var(--border)] pb-2 mb-4 uppercase text-[var(--ink)] tracking-wider">
-            DEPARTMENTAL COMPLAINT DISTRIBUTION
-          </h2>
-          <div className="w-full h-64">
-            {mounted ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="category" stroke="var(--ink)" fontSize={9} tickLine={false} />
-                  <YAxis stroke="var(--ink)" fontSize={9} tickLine={false} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      fontSize: "10px",
-                      fontFamily: "var(--font-body)"
-                    }}
-                  />
-                  <Bar dataKey="Complaints" fill="var(--accent)" barSize={30} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center font-utility text-xs opacity-50">
-                PREPARING DATA MODEL GRAPH...
+        {loadingData ? (
+          <>
+            {/* Stat skeletons */}
+            <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[1, 2, 3, 4, 5].map((idx) => (
+                <StatBlockSkeleton key={idx} />
+              ))}
+            </section>
+            
+            {/* Table skeleton */}
+            <section className="flex flex-col gap-4">
+              <Skeleton className="h-6 w-1/4" />
+              <div className="ledger-board p-4 flex flex-col gap-4">
+                {[1, 2, 3, 4].map((idx) => (
+                  <LedgerRowSkeleton key={idx} />
+                ))}
               </div>
-            )}
-          </div>
-        </section>
-
-        {/* Admin Panel Details */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start mb-12">
-          
-          {/* left column: filters and notice form */}
-          <section className="flex flex-col gap-6 lg:col-span-1">
-            {/* Filters card */}
-            <div className="ledger-board p-5 bg-[var(--surface)]">
-              <h2 className="text-sm font-bold border-b border-[var(--border)] pb-2 mb-4 uppercase text-[var(--ink)] tracking-wider">
-                FILTERS
-              </h2>
+            </section>
+          </>
+        ) : (
+          <>
+            {/* Ledger Stat blocks */}
+            <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="ledger-tab">
+                <span className="utility-caps text-[10px] text-[var(--ink-muted)]">TOTAL REGISTERED</span>
+                <div className="font-utility font-bold text-3xl mt-1 text-[var(--ink)]">
+                  {String(totalComplaintsCount).padStart(2, "0")}
+                </div>
+              </div>
               
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label htmlFor="filter-status" className="utility-caps text-[10px] block mb-1 opacity-70">
-                    Status State
-                  </label>
-                  <select
-                    id="filter-status"
-                    className="select-minimal"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                    <option value="ALL">ALL STATUSES</option>
-                    <option value="OPEN">OPEN ONLY</option>
-                    <option value="PROGRESS">IN PROGRESS</option>
-                    <option value="RESOLVED">RESOLVED ONLY</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="filter-cat" className="utility-caps text-[10px] block mb-1 opacity-70">
-                    Category
-                  </label>
-                  <select
-                    id="filter-cat"
-                    className="select-minimal"
-                    value={catFilter}
-                    onChange={(e) => setCatFilter(e.target.value)}
-                  >
-                    <option value="ALL">ALL CATEGORIES</option>
-                    <option value="Plumbing">PLUMBING</option>
-                    <option value="Electrical">ELECTRICAL</option>
-                    <option value="Cleaning">CLEANING</option>
-                    <option value="Security">SECURITY</option>
-                    <option value="Parking">PARKING</option>
-                    <option value="Other">OTHER</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="filter-search" className="utility-caps text-[10px] block mb-1 opacity-70">
-                    Search Unit / Name
-                  </label>
-                  <input
-                    id="filter-search"
-                    type="text"
-                    className="input-minimal font-utility"
-                    placeholder="E.g. B-402"
-                    value={searchUnit}
-                    onChange={(e) => setSearchUnit(e.target.value)}
-                  />
-                </div>
-
-                <div className="border-t border-dashed border-[var(--border)] my-1"></div>
-
-                {/* Date range filter */}
-                <div>
-                  <label htmlFor="filter-start-date" className="utility-caps text-[10px] block mb-1 opacity-70">
-                    Date From
-                  </label>
-                  <input
-                    id="filter-start-date"
-                    type="date"
-                    className="input-minimal font-utility text-xs"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="filter-end-date" className="utility-caps text-[10px] block mb-1 opacity-70">
-                    Date To
-                  </label>
-                  <input
-                    id="filter-end-date"
-                    type="date"
-                    className="input-minimal font-utility text-xs"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
+              <div className="ledger-tab ledger-tab--open">
+                <span className="utility-caps text-[10px] text-[var(--status-open)] font-bold">OPEN ENTRIES</span>
+                <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-open)]">
+                  {String(openCount).padStart(2, "0")}
                 </div>
               </div>
-            </div>
-
-          </section>
-
-          {/* right column: complaints ledger table (3 span) */}
-          <section className="lg:col-span-3 flex flex-col gap-4">
-            <h2 className="text-xl font-bold font-display uppercase text-[var(--ink)]">
-              ADMINISTRATOR COMPLAINTS MASTER LEDGER
-            </h2>
-
-            <div className="ledger-board">
-              {/* Header */}
-              <div className="ledger-header">
-                <span>UNIT</span>
-                <span>ENTRY DETAILS & RESIDENT</span>
-                <span>DATE</span>
-                <span>STATUS STAMP</span>
+              
+              <div className="ledger-tab ledger-tab--progress">
+                <span className="utility-caps text-[10px] text-[var(--status-progress)] font-bold">IN PROGRESS</span>
+                <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-progress)]">
+                  {String(progressCount).padStart(2, "0")}
+                </div>
+              </div>
+              
+              <div className="ledger-tab ledger-tab--resolved">
+                <span className="utility-caps text-[10px] text-[var(--status-resolved)] font-bold">RESOLVED</span>
+                <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-resolved)]">
+                  {String(resolvedCount).padStart(2, "0")}
+                </div>
               </div>
 
-              {/* List */}
-              {loadingData ? (
-                <div className="p-8 text-center bg-[var(--surface)] border-b border-[var(--border)]">
-                  <p className="font-utility text-xs opacity-50 animate-pulse">LOADING JOURNAL ENTRIES...</p>
+              <div className="ledger-tab border-[var(--status-open)] border-t-4">
+                <span className="utility-caps text-[10px] text-[var(--status-open)] font-bold animate-pulse">★ OVERDUE</span>
+                <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-open)]">
+                  {String(overdueCount).padStart(2, "0")}
                 </div>
-              ) : sortedComplaints.length === 0 ? (
-                <div className="p-8 text-center bg-[var(--surface)] border-b border-[var(--border)] last:border-b-0">
-                  <p className="font-utility text-xs opacity-60">NO ENTRIES FOUND MATCHING SELECTION.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-[var(--border)]">
-                  {sortedComplaints.map((comp) => {
-                    const isCompOverdue = isOverdue(comp);
-                    return (
-                      <div
-                        key={comp.id}
-                        onClick={() => openEditDialog(comp)}
-                        className="ledger-row cursor-pointer"
+              </div>
+            </section>
+
+            {/* Category Report Graph */}
+            <section className="ledger-board p-6 bg-[var(--surface)]">
+              <h2 className="text-xs font-bold font-display border-b border-[var(--border)] pb-3 mb-6 uppercase text-[var(--ink)] tracking-wider">
+                DEPARTMENTAL COMPLAINT DISTRIBUTION
+              </h2>
+              <div className="w-full h-64">
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={categoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="category" stroke="var(--ink-muted)" fontSize={9} tickLine={false} />
+                      <YAxis stroke="var(--ink-muted)" fontSize={9} tickLine={false} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          fontSize: "10px",
+                          fontFamily: "var(--font-body)",
+                          color: "var(--ink)",
+                          borderRadius: "6px"
+                        }}
+                      />
+                      <Bar dataKey="OPEN" stackId="status-stack" fill="var(--status-open)" barSize={30} />
+                      <Bar dataKey="PROGRESS" stackId="status-stack" fill="var(--status-progress)" barSize={30} />
+                      <Bar dataKey="RESOLVED" stackId="status-stack" fill="var(--status-resolved)" barSize={30} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-utility text-xs text-[var(--ink-muted)]">
+                    PREPARING DATA MODEL GRAPH...
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Admin Panel Details */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+              {/* left column: filters */}
+              <section className="flex flex-col gap-6 lg:col-span-1">
+                <div className="ledger-board p-5 bg-[var(--surface)]">
+                  <h2 className="text-sm font-bold border-b border-[var(--border)] pb-2 mb-4 uppercase text-[var(--ink)] tracking-wider flex items-center gap-2">
+                    <SlidersHorizontal size={14} className="text-[var(--accent)]" />
+                    FILTERS
+                  </h2>
+                  
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <label htmlFor="filter-status" className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">
+                        Status State
+                      </label>
+                      <select
+                        id="filter-status"
+                        className="select-minimal"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
                       >
-                        {/* Unit prefix */}
-                        <div className="ledger-unit font-utility font-bold text-sm">
-                          {comp.apartment_no}
-                        </div>
-                        
-                        {/* Description & Category details */}
-                        <div className="pr-4 py-1">
-                          <div className="flex gap-2 items-center mb-1 flex-wrap">
-                            <span className="font-utility text-[10px] font-semibold text-[var(--accent)] tracking-wider">
-                              {comp.category.toUpperCase()}
-                            </span>
-                            <span className={`font-utility text-[9px] font-semibold tracking-wider px-1 border ${
-                              comp.priority === "High" 
-                                ? "border-[var(--status-open)] text-[var(--status-open)] animate-pulse" 
-                                : comp.priority === "Medium" 
-                                ? "border-[var(--accent)] text-[var(--accent)]" 
-                                : "border-[var(--border)] text-[var(--ink)] opacity-60"
-                            }`}>
-                              {comp.priority.toUpperCase()}
-                            </span>
-                            {isCompOverdue && (
-                              <span className="font-utility text-[9px] font-bold tracking-wider px-1.5 py-0.5 bg-[var(--status-open)] text-white animate-pulse">
-                                OVERDUE
-                              </span>
-                            )}
-                            <span className="font-utility text-[10px] text-[var(--ink)] opacity-40">
-                              REF: {comp.id}
-                            </span>
-                          </div>
-                          
-                          {/* Resident Name */}
-                          <div className="text-[10px] font-utility font-semibold text-[var(--ink)] opacity-70 mb-0.5">
-                            BY: {getResidentName(comp)}
-                          </div>
-                          <p className="font-body text-xs text-[var(--ink)] font-medium leading-relaxed line-clamp-1">
-                            {comp.description}
-                          </p>
-                        </div>
+                        <option value="ALL">ALL STATUSES</option>
+                        <option value="OPEN">OPEN ONLY</option>
+                        <option value="PROGRESS">IN PROGRESS</option>
+                        <option value="RESOLVED">RESOLVED ONLY</option>
+                      </select>
+                    </div>
 
-                        {/* Date */}
-                        <div className="font-utility text-xs text-[var(--ink)] opacity-70">
-                          {fmtDate(comp.created_at)}
-                        </div>
+                    <div>
+                      <label htmlFor="filter-cat" className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">
+                        Category
+                      </label>
+                      <select
+                        id="filter-cat"
+                        className="select-minimal"
+                        value={catFilter}
+                        onChange={(e) => setCatFilter(e.target.value)}
+                      >
+                        <option value="ALL">ALL CATEGORIES</option>
+                        <option value="Plumbing">PLUMBING</option>
+                        <option value="Electrical">ELECTRICAL</option>
+                        <option value="Cleaning">CLEANING</option>
+                        <option value="Security">SECURITY</option>
+                        <option value="Parking">PARKING</option>
+                        <option value="Other">OTHER</option>
+                      </select>
+                    </div>
 
-                        {/* Status Stamp */}
-                        <div className="status-stamp-container">
-                          <span className={getStampClass(comp.status)}>
-                            {fmtStatus(comp.status)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                    <div>
+                      <label htmlFor="filter-search" className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">
+                        Search Unit / Name
+                      </label>
+                      <input
+                        id="filter-search"
+                        type="text"
+                        className="input-minimal font-utility"
+                        placeholder="E.g. B-402"
+                        value={searchUnit}
+                        onChange={(e) => setSearchUnit(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="border-t border-dashed border-[var(--border)] my-1"></div>
+
+                    {/* Date range filter */}
+                    <div>
+                      <label htmlFor="filter-start-date" className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">
+                        Date From
+                      </label>
+                      <input
+                        id="filter-start-date"
+                        type="date"
+                        className="input-minimal font-utility text-xs"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="filter-end-date" className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">
+                        Date To
+                      </label>
+                      <input
+                        id="filter-end-date"
+                        type="date"
+                        className="input-minimal font-utility text-xs"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
-              )}
+              </section>
+
+              {/* right column: complaints ledger table */}
+              <section className="lg:col-span-3 flex flex-col gap-4">
+                <h2 className="text-xl font-bold font-display uppercase text-[var(--ink)]">
+                  COMPLAINTS MASTER LEDGER
+                </h2>
+
+                <div className="ledger-board">
+                  {/* Header - Hidden on mobile */}
+                  <div className="hidden md:grid ledger-header border-b border-[var(--border)]">
+                    <span>UNIT</span>
+                    <span>ENTRY DETAILS & RESIDENT</span>
+                    <span>DATE</span>
+                    <span>STATUS STAMP</span>
+                  </div>
+
+                  {/* List */}
+                  {sortedComplaints.length === 0 ? (
+                    <div className="p-8 text-center bg-[var(--surface)] flex flex-col items-center gap-4">
+                      <FileSearch className="w-10 h-10 text-[var(--ink-muted)] opacity-50" />
+                      <div>
+                        <p className="font-utility text-xs text-[var(--ink)] uppercase tracking-wider font-semibold">
+                          NO MATCHING ENTRIES
+                        </p>
+                        <p className="font-body text-xs text-[var(--ink-muted)] mt-1">
+                          Try modifying your status or category filters, date ranges, or search keywords.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[var(--border)] bg-[var(--surface)]">
+                      {sortedComplaints.map((comp) => {
+                        const isCompOverdue = isOverdue(comp);
+                        return (
+                          <div
+                            key={comp.id}
+                            onClick={() => openEditDialog(comp)}
+                            className="flex flex-col md:grid md:grid-template-columns md:grid-cols-[100px_1fr_140px_140px] gap-4 md:gap-0 p-5 md:py-4 md:px-5 items-start md:items-center hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                          >
+                            {/* Mobile row: Unit and Status together */}
+                            <div className="flex justify-between items-center w-full md:w-auto md:block">
+                              <div className="ledger-unit font-utility font-bold text-sm">
+                                {comp.apartment_no}
+                              </div>
+                              <div className="md:hidden status-stamp-container">
+                                <span className={getStampClass(comp.status)}>
+                                  {fmtStatus(comp.status)}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Description & Category details */}
+                            <div className="pr-4 py-1">
+                              <div className="flex gap-2 items-center mb-1 flex-wrap">
+                                <span className="font-utility text-[10px] font-semibold text-[var(--ink-muted)] tracking-wider">
+                                  {comp.category.toUpperCase()}
+                                </span>
+                                <span className={`font-utility text-[9px] font-semibold tracking-wider px-1 border rounded-[4px] ${
+                                  comp.priority === "High" 
+                                    ? "border-[var(--status-open)] text-[var(--status-open)]" 
+                                    : comp.priority === "Medium" 
+                                    ? "border-[var(--ink-muted)] text-[var(--ink-muted)]" 
+                                    : "border-[var(--border)] text-[var(--ink-muted)]"
+                                }`}>
+                                  {comp.priority.toUpperCase()}
+                                </span>
+                                {isCompOverdue && (
+                                  <span className="font-utility text-[9px] font-bold tracking-wider px-1.5 py-0.5 bg-[var(--status-open)] text-white rounded-[4px] animate-pulse">
+                                    OVERDUE
+                                  </span>
+                                )}
+                                <span className="font-utility text-[10px] text-[var(--ink-muted)] opacity-60">
+                                  REF: {comp.id.substring(0, 8)}
+                                </span>
+                              </div>
+                              
+                              {/* Resident Name */}
+                              <div className="text-[10px] font-utility font-semibold text-[var(--ink-muted)] mb-1">
+                                BY: {getResidentName(comp)}
+                              </div>
+                              <p className="font-body text-xs text-[var(--ink)] font-medium leading-relaxed line-clamp-2 md:line-clamp-1">
+                                {comp.description}
+                              </p>
+                            </div>
+
+                            {/* Date */}
+                            <div className="font-utility text-xs text-[var(--ink-muted)] flex items-center">
+                              <span className="md:hidden mr-1">FILED: </span>
+                              {fmtDate(comp.created_at)}
+                            </div>
+
+                            {/* Status Stamp - Desktop only */}
+                            <div className="hidden md:flex status-stamp-container">
+                              <span className={getStampClass(comp.status)}>
+                                {fmtStatus(comp.status)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
+          </>
+        )}
 
         {/* Footer copyright */}
-        <footer className="border-t border-[var(--border)] pt-8 text-center text-xs font-utility text-[var(--ink)] opacity-60 mt-12">
+        <footer className="border-t border-[var(--border)] pt-8 text-center text-xs font-utility text-[var(--ink-muted)]">
           <p>© 2026 SOCIETY-FIX. DEPUTY SUPERINTENDENT OFFICE SECURED ARCHIVES.</p>
         </footer>
       </main>

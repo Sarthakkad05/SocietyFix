@@ -2,11 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/client";
+import Navigation from "@/app/components/Navigation";
+import { Skeleton } from "@/app/components/Skeleton";
+import { toast } from "sonner";
+import { ClipboardList, Image as ImageIcon } from "lucide-react";
 
 // ─── Zod Schema ────────────────────────────────────────────────────────────────
 const categories = ["Plumbing", "Electrical", "Cleaning", "Security", "Parking", "Other"] as const;
@@ -102,14 +105,12 @@ function HistoryDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const history = complaint.complaint_status_history ?? [];
 
-  // Close on backdrop click
   const handleBackdrop = (e: React.MouseEvent) => {
     if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
       onClose();
     }
   };
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -118,29 +119,29 @@ function HistoryDialog({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
       onClick={handleBackdrop}
     >
       <div
         ref={dialogRef}
-        className="ledger-board bg-[var(--surface)] w-full max-w-lg max-h-[80vh] flex flex-col"
+        className="ledger-board bg-[var(--surface)] w-full max-w-lg max-h-[80vh] flex flex-col rounded-[6px]"
       >
         {/* Dialog Header */}
-        <div className="bg-[var(--ink)] text-[var(--bg)] px-5 py-4 flex items-start justify-between gap-4 flex-shrink-0">
+        <div className="bg-[var(--surface-2)] border-b border-[var(--border)] text-[var(--ink)] px-5 py-4 flex items-start justify-between gap-4 flex-shrink-0">
           <div>
-            <div className="font-utility text-[10px] tracking-widest opacity-60 mb-1">
+            <div className="font-utility text-[10px] tracking-widest text-[var(--ink-muted)] mb-1">
               COMPLAINT STATUS TIMELINE
             </div>
-            <h2 className="font-display font-bold text-base leading-tight">
-              {complaint.category.toUpperCase()} — {complaint.priority.toUpperCase()} PRIORITY
+            <h2 className="font-display font-bold text-base leading-tight uppercase">
+              {complaint.category} — {complaint.priority} PRIORITY
             </h2>
-            <p className="font-utility text-[10px] opacity-50 mt-0.5">
+            <p className="font-utility text-[10px] text-[var(--ink-muted)] mt-0.5">
               FILED: {fmtDate(complaint.created_at)}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="font-utility text-xs text-[var(--bg)] opacity-60 hover:opacity-100 flex-shrink-0 mt-1"
+            className="font-utility text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] flex-shrink-0 mt-1"
             aria-label="Close"
           >
             [ESC]
@@ -148,8 +149,8 @@ function HistoryDialog({
         </div>
 
         {/* Description */}
-        <div className="px-5 py-3 border-b border-[var(--border)] bg-[#fafaf8] flex-shrink-0">
-          <p className="font-body text-xs text-[var(--ink)] leading-relaxed opacity-85">
+        <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]/30 flex-shrink-0">
+          <p className="font-body text-xs text-[var(--ink)] leading-relaxed">
             {complaint.description}
           </p>
         </div>
@@ -158,15 +159,15 @@ function HistoryDialog({
         <div className="overflow-y-auto flex-1 px-5 py-4">
           {history.length === 0 ? (
             <div className="text-center py-8">
-              <p className="font-utility text-[11px] text-[var(--ink)] opacity-50">
+              <p className="font-utility text-[11px] text-[var(--ink-muted)]">
                 NO STATUS HISTORY RECORDED.
               </p>
-              <p className="font-utility text-[10px] opacity-40 mt-1">
+              <p className="font-utility text-[10px] text-[var(--ink-muted)] opacity-60 mt-1">
                 ENTRY FRESHLY FILED — AWAITING REVIEW.
               </p>
             </div>
           ) : (
-            <ol className="relative border-l-2 border-[var(--border)] pl-5 space-y-5">
+            <ol className="relative border-l border-[var(--border)] pl-5 space-y-5">
               {[...history]
                 .sort(
                   (a, b) =>
@@ -176,9 +177,9 @@ function HistoryDialog({
                   <li key={entry.id} className="relative">
                     {/* Timeline dot */}
                     <span
-                      className={`absolute -left-[25px] top-0.5 w-3 h-3 rounded-full border-2 border-[var(--surface)] ${
+                      className={`absolute -left-[24px] top-1.5 w-2 h-2 rounded-full border border-[var(--surface)] ${
                         idx === history.length - 1
-                          ? "bg-[var(--ink)]"
+                          ? "bg-[var(--accent)]"
                           : "bg-[var(--border)]"
                       }`}
                     />
@@ -190,11 +191,11 @@ function HistoryDialog({
                           </span>
                         </div>
                         {entry.note && (
-                          <p className="font-body text-xs text-[var(--ink)] opacity-80 leading-relaxed mt-1">
-                            {entry.note}
+                          <p className="font-body text-xs text-[var(--ink)] leading-relaxed mt-1 italic">
+                            &quot;{entry.note}&quot;
                           </p>
                         )}
-                        <p className="font-utility text-[10px] text-[var(--ink)] opacity-45 mt-1.5">
+                        <p className="font-utility text-[10px] text-[var(--ink-muted)] mt-1.5">
                           {fmtDateTime(entry.created_at)}
                         </p>
                       </div>
@@ -207,7 +208,7 @@ function HistoryDialog({
 
         {/* Dialog footer */}
         <div className="border-t border-[var(--border)] px-5 py-3 flex-shrink-0">
-          <button onClick={onClose} className="btn-minimal-secondary w-full text-xs py-2">
+          <button onClick={onClose} className="btn-minimal-secondary w-full text-xs py-2 rounded-[6px]">
             CLOSE TIMELINE
           </button>
         </div>
@@ -226,12 +227,12 @@ function ComplaintCard({
 }) {
   const priorityStyle: Record<string, string> = {
     High:   "border-[var(--status-open)] text-[var(--status-open)]",
-    Medium: "border-[var(--accent)] text-[var(--accent)]",
-    Low:    "border-[var(--border)] text-[var(--ink)] opacity-70",
+    Medium: "border-[var(--ink-muted)] text-[var(--ink-muted)]",
+    Low:    "border-[var(--border)] text-[var(--ink-muted)]",
   };
 
   return (
-    <div className="ledger-board bg-[var(--surface)] hover:shadow-md transition-shadow duration-150">
+    <div className="ledger-board bg-[var(--surface)] hover:shadow-md hover:border-[var(--ink-muted)]/30 transition-all duration-150 rounded-[6px]">
       {/* Card top stripe per category */}
       <div
         className="h-[3px]"
@@ -254,7 +255,7 @@ function ComplaintCard({
               {complaint.category.toUpperCase()}
             </span>
             <span
-              className={`font-utility text-[9px] font-bold tracking-wider px-1.5 py-0.5 border ${
+              className={`font-utility text-[9px] font-bold tracking-wider px-1.5 py-0.5 border rounded-[6px] ${
                 priorityStyle[complaint.priority] || priorityStyle.Low
               }`}
             >
@@ -269,13 +270,13 @@ function ComplaintCard({
         </div>
 
         {/* Row 2: Description excerpt */}
-        <p className="font-body text-xs text-[var(--ink)] opacity-80 leading-relaxed mb-3 line-clamp-2">
+        <p className="font-body text-xs text-[var(--ink-muted)] leading-relaxed mb-3 line-clamp-2">
           {complaint.description}
         </p>
 
         {/* Row 3: metadata + action */}
         <div className="flex items-center justify-between gap-3 border-t border-dashed border-[var(--border)] pt-3">
-          <span className="font-utility text-[10px] text-[var(--ink)] opacity-50">
+          <span className="font-utility text-[10px] text-[var(--ink-muted)]">
             FILED {fmtDate(complaint.created_at)}
           </span>
           <button
@@ -297,8 +298,6 @@ export default function ResidentDashboard() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState("");
   const [activeDialog, setActiveDialog] = useState<Complaint | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -371,7 +370,6 @@ export default function ResidentDashboard() {
   const onSubmit = async (values: ComplaintFormValues) => {
     if (!profile) return;
     setSubmitting(true);
-    setSubmitError("");
 
     const supabase = createClient();
     let photoUrl: string | null = null;
@@ -386,7 +384,7 @@ export default function ResidentDashboard() {
         .upload(filename, file, { upsert: false });
 
       if (uploadErr) {
-        setSubmitError(`PHOTO UPLOAD FAILED: ${uploadErr.message}`);
+        toast.error(`PHOTO UPLOAD FAILED: ${uploadErr.message.toUpperCase()}`);
         setSubmitting(false);
         return;
       }
@@ -420,7 +418,7 @@ export default function ResidentDashboard() {
       .single();
 
     if (insertErr) {
-      setSubmitError(`COULD NOT RECORD ENTRY: ${insertErr.message}`);
+      toast.error(`COULD NOT RECORD ENTRY: ${insertErr.message.toUpperCase()}`);
       setSubmitting(false);
       return;
     }
@@ -428,32 +426,13 @@ export default function ResidentDashboard() {
     setComplaints((prev) => [newComplaint as Complaint, ...prev]);
     reset({ category: "Plumbing", priority: "Medium", description: "" });
     setPhotoPreview(null);
-    setSubmitSuccess(true);
+    toast.success("ENTRY DULY COMMITTED TO LEDGER REGISTER");
     setSubmitting(false);
-    setTimeout(() => setSubmitSuccess(false), 4000);
   };
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
-  // ── Loading state ────────────────────────────────────────────────────────────
-  if (loadingData) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="font-utility text-xs text-[var(--ink)] opacity-50 tracking-widest animate-pulse">
-            LOADING LEDGER ENTRIES...
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
+      <Navigation />
       {/* History Dialog */}
       {activeDialog && (
         <HistoryDialog
@@ -462,211 +441,215 @@ export default function ResidentDashboard() {
         />
       )}
 
-      <main className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        {/* ── Page Header ───────────────────────────────────────────────────── */}
-        <header className="border-b border-[var(--border)] pb-6 mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+      <main className="min-h-[calc(100vh-64px)] py-12 px-4 md:px-6 max-w-[1280px] mx-auto flex flex-col gap-12">
+        {/* Page Header */}
+        <header className="border-b border-[var(--border)] pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <span className="utility-caps text-[var(--accent)] font-semibold tracking-widest text-xs block mb-1">
+            <span className="utility-caps text-[var(--ink-muted)] font-semibold tracking-widest text-xs block mb-1">
               RESIDENT COMPLAINTS REGISTER
             </span>
             <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)] flex items-center gap-3">
               {profile?.full_name || "RESIDENT"}
-              <span className="font-utility text-sm font-bold px-2 py-0.5 border border-[var(--ink)] bg-[var(--ink)] text-[var(--bg)] align-middle">
+              <span className="font-utility text-sm font-bold px-2 py-0.5 border border-[var(--ink)] bg-[var(--ink)] text-[var(--bg)] rounded-[6px]">
                 {profile?.apartment_no}
               </span>
             </h1>
           </div>
-          <div className="flex gap-3">
-            <Link href="/notices" className="btn-minimal-secondary text-xs py-2 px-4">
-              NOTICE BOARD
-            </Link>
-            <button onClick={handleLogout} className="btn-minimal text-xs py-2 px-4">
-              SIGN OUT
-            </button>
-          </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-          {/* ── Left: Raise Complaint Form ───────────────────────────────────── */}
-          <section className="lg:col-span-2 ledger-board bg-[var(--surface)]">
-            <div className="bg-[var(--ink)] text-[var(--bg)] px-5 py-3">
-              <h2 className="font-display font-bold text-sm uppercase tracking-wide">
-                RAISE COMPLAINT ENTRY
-              </h2>
+        {loadingData ? (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+            <div className="lg:col-span-2 ledger-board bg-[var(--surface)] p-6 flex flex-col gap-4 animate-pulse">
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-10 w-full" />
             </div>
+            <div className="lg:col-span-3 flex flex-col gap-4 animate-pulse">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-6 w-1/3" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+            {/* Left: Raise Complaint Form */}
+            <section className="lg:col-span-2 ledger-board bg-[var(--surface)]">
+              <div className="bg-[var(--surface-2)] border-b border-[var(--border)] px-5 py-3">
+                <h2 className="font-display font-bold text-sm uppercase tracking-wide text-[var(--ink)]">
+                  RAISE COMPLAINT ENTRY
+                </h2>
+              </div>
 
-            <div className="p-5">
-              {submitSuccess && (
-                <div className="border border-[var(--status-resolved)] text-[var(--status-resolved)] p-3 font-utility text-[11px] mb-4 bg-[#f0fbf5]">
-                  ENTRY DULY COMMITTED TO LEDGER REGISTER.
-                </div>
-              )}
-              {submitError && (
-                <div className="border border-[var(--status-open)] text-[var(--status-open)] p-3 font-utility text-[11px] mb-4 bg-[#fdf2f0]">
-                  {submitError}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-                {/* Category */}
-                <div>
-                  <label htmlFor="cat" className="utility-caps text-[10px] block mb-1 opacity-80">
-                    Department / Category *
-                  </label>
-                  <select id="cat" className="select-minimal" {...register("category")}>
-                    {["Plumbing","Electrical","Cleaning","Security","Parking","Other"].map((c) => (
-                      <option key={c} value={c}>{c.toUpperCase()}</option>
-                    ))}
-                  </select>
-                  {errors.category && (
-                    <p className="font-utility text-[10px] text-[var(--status-open)] mt-1">
-                      {errors.category.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Priority */}
-                <div>
-                  <label htmlFor="priority" className="utility-caps text-[10px] block mb-1 opacity-80">
-                    Priority Tier *
-                  </label>
-                  <div className="flex gap-2">
-                    {(["Low", "Medium", "High"] as const).map((p) => (
-                      <label
-                        key={p}
-                        className={`flex-1 text-center cursor-pointer font-utility text-[10px] font-bold tracking-wider py-2 border transition-colors ${
-                          watch("priority") === p
-                            ? p === "High"
-                              ? "bg-[var(--status-open)] border-[var(--status-open)] text-white"
-                              : p === "Medium"
-                              ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-                              : "bg-[var(--ink)] border-[var(--ink)] text-[var(--bg)]"
-                            : "border-[var(--border)] text-[var(--ink)] hover:border-[var(--ink)]"
-                        }`}
-                      >
-                        <input type="radio" value={p} className="sr-only" {...register("priority")} />
-                        {p.toUpperCase()}
-                      </label>
-                    ))}
-                  </div>
-                  {errors.priority && (
-                    <p className="font-utility text-[10px] text-[var(--status-open)] mt-1">
-                      {errors.priority.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label htmlFor="desc" className="utility-caps text-[10px] block mb-1 opacity-80">
-                    Description of Defect * (min. 20 chars)
-                  </label>
-                  <textarea
-                    id="desc"
-                    rows={5}
-                    className="input-minimal resize-none font-body text-sm"
-                    placeholder="DESCRIBE THE ISSUE IN DETAIL..."
-                    {...register("description")}
-                  />
-                  {errors.description && (
-                    <p className="font-utility text-[10px] text-[var(--status-open)] mt-1">
-                      {errors.description.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Photo Upload */}
-                <div>
-                  <label htmlFor="photo" className="utility-caps text-[10px] block mb-1 opacity-80">
-                    Evidence Photo (optional · JPG/PNG/WEBP · max 5 MB)
-                  </label>
-                  <label
-                    htmlFor="photo"
-                    className="block w-full border border-dashed border-[var(--border)] cursor-pointer hover:border-[var(--ink)] transition-colors"
-                  >
-                    {photoPreview ? (
-                      <div className="relative">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={photoPreview}
-                          alt="Preview"
-                          className="w-full h-36 object-cover"
-                        />
-                        <span className="absolute top-1 right-1 bg-[var(--ink)] text-[var(--bg)] font-utility text-[9px] px-1.5 py-0.5">
-                          CHANGE
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 flex flex-col items-center justify-center gap-1 px-4 text-center">
-                        <svg className="w-6 h-6 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                            d="M3 16l4-4 4 4 4-6 4 6M3 20h18" />
-                        </svg>
-                        <span className="font-utility text-[10px] opacity-50">CLICK TO ATTACH EVIDENCE</span>
-                      </div>
+              <div className="p-5">
+                <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
+                  {/* Category */}
+                  <div>
+                    <label htmlFor="cat" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-80">
+                      Department / Category *
+                    </label>
+                    <select id="cat" className="select-minimal" {...register("category")}>
+                      {["Plumbing","Electrical","Cleaning","Security","Parking","Other"].map((c) => (
+                        <option key={c} value={c}>{c.toUpperCase()}</option>
+                      ))}
+                    </select>
+                    {errors.category && (
+                      <p className="font-utility text-[10px] text-[var(--status-open)] mt-1.5">
+                        {errors.category.message}
+                      </p>
                     )}
-                  </label>
-                  <input
-                    id="photo"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="sr-only"
-                    {...register("photo")}
-                  />
-                  {errors.photo && (
-                    <p className="font-utility text-[10px] text-[var(--status-open)] mt-1">
-                      {errors.photo.message as string}
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <label htmlFor="priority" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-80">
+                      Priority Tier *
+                    </label>
+                    <div className="flex gap-2">
+                      {(["Low", "Medium", "High"] as const).map((p) => (
+                        <label
+                          key={p}
+                          className={`flex-1 text-center cursor-pointer font-utility text-[10px] font-bold tracking-wider py-2 border rounded-[6px] transition-colors ${
+                            watch("priority") === p
+                              ? p === "High"
+                                ? "bg-[var(--status-open)] border-[var(--status-open)] text-white"
+                                : p === "Medium"
+                                ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                                : "bg-[var(--ink)] border-[var(--ink)] text-[var(--bg)]"
+                              : "border-[var(--border)] text-[var(--ink-muted)] hover:border-[var(--ink)]"
+                          }`}
+                        >
+                          <input type="radio" value={p} className="sr-only" {...register("priority")} />
+                          {p.toUpperCase()}
+                        </label>
+                      ))}
+                    </div>
+                    {errors.priority && (
+                      <p className="font-utility text-[10px] text-[var(--status-open)] mt-1.5">
+                        {errors.priority.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label htmlFor="desc" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-80">
+                      Description of Defect * (min. 20 chars)
+                    </label>
+                    <textarea
+                      id="desc"
+                      rows={5}
+                      className="input-minimal resize-none font-body text-sm"
+                      placeholder="DESCRIBE THE ISSUE IN DETAIL..."
+                      {...register("description")}
+                    />
+                    {errors.description && (
+                      <p className="font-utility text-[10px] text-[var(--status-open)] mt-1.5">
+                        {errors.description.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Photo Upload */}
+                  <div>
+                    <label htmlFor="photo" className="utility-caps text-[10px] block mb-2 text-[var(--ink)] opacity-80">
+                      Evidence Photo (optional · JPG/PNG/WEBP · max 5 MB)
+                    </label>
+                    <label
+                      htmlFor="photo"
+                      className="block w-full border border-dashed border-[var(--border)] rounded-[6px] cursor-pointer hover:border-[var(--ink-muted)] transition-colors overflow-hidden"
+                    >
+                      {photoPreview ? (
+                        <div className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={photoPreview}
+                            alt="Preview"
+                            className="w-full h-36 object-cover"
+                          />
+                          <span className="absolute top-2 right-2 bg-[var(--surface)] text-[var(--ink)] border border-[var(--border)] font-utility text-[9px] px-1.5 py-0.5 rounded-[4px]">
+                            CHANGE
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="h-24 flex flex-col items-center justify-center gap-2 px-4 text-center">
+                          <ImageIcon className="w-6 h-6 text-[var(--ink-muted)] opacity-50" />
+                          <span className="font-utility text-[10px] text-[var(--ink-muted)]">CLICK TO ATTACH EVIDENCE</span>
+                        </div>
+                      )}
+                    </label>
+                    <input
+                      id="photo"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      {...register("photo")}
+                    />
+                    {errors.photo && (
+                      <p className="font-utility text-[10px] text-[var(--status-open)] mt-1.5">
+                        {errors.photo.message as string}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="btn-minimal w-full mt-2 disabled:opacity-50 rounded-[6px]"
+                  >
+                    {submitting ? "COMMITTING..." : "COMMIT ENTRY TO LEDGER"}
+                  </button>
+                </form>
+              </div>
+            </section>
+
+            {/* Right: Complaints List */}
+            <section className="lg:col-span-3 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display font-bold text-xl uppercase tracking-tight text-[var(--ink)]">
+                  MY COMPLAINT LOG
+                </h2>
+                <span className="font-utility text-[10px] text-[var(--ink-muted)] border border-[var(--border)] px-2 py-1 rounded-[6px]">
+                  {complaints.length} {complaints.length === 1 ? "ENTRY" : "ENTRIES"}
+                </span>
+              </div>
+
+              {complaints.length === 0 ? (
+                <div className="ledger-board bg-[var(--surface)] p-10 text-center flex flex-col items-center justify-center gap-4">
+                  <div className="w-12 h-12 rounded-full border border-[var(--border)] flex items-center justify-center bg-[var(--surface-2)]">
+                    <ClipboardList className="w-6 h-6 text-[var(--accent)]" />
+                  </div>
+                  <div>
+                    <p className="font-utility text-xs text-[var(--ink)] uppercase font-semibold tracking-wider">
+                      NO ENTRIES IN YOUR REGISTER YET
                     </p>
-                  )}
+                    <p className="font-body text-xs text-[var(--ink-muted)] mt-1.5 max-w-sm">
+                      Your journal is clean. Use the form to file your first complaint entry and commit it to our secure system log.
+                    </p>
+                  </div>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="btn-minimal w-full mt-2 disabled:opacity-50"
-                >
-                  {submitting ? "COMMITTING..." : "COMMIT ENTRY TO LEDGER"}
-                </button>
-              </form>
-            </div>
-          </section>
-
-          {/* ── Right: Complaints List ────────────────────────────────────────── */}
-          <section className="lg:col-span-3 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display font-bold text-xl uppercase tracking-tight text-[var(--ink)]">
-                MY COMPLAINT LOG
-              </h2>
-              <span className="font-utility text-[10px] text-[var(--ink)] opacity-50 border border-[var(--border)] px-2 py-1">
-                {complaints.length} {complaints.length === 1 ? "ENTRY" : "ENTRIES"}
-              </span>
-            </div>
-
-            {complaints.length === 0 ? (
-              <div className="ledger-board bg-[var(--surface)] p-10 text-center">
-                <p className="font-utility text-[11px] text-[var(--ink)] opacity-50 tracking-wider">
-                  NO ENTRIES IN YOUR REGISTER YET.
-                </p>
-                <p className="font-utility text-[10px] opacity-40 mt-1">
-                  USE THE FORM TO FILE YOUR FIRST COMPLAINT.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {complaints.map((c) => (
-                  <ComplaintCard
-                    key={c.id}
-                    complaint={c}
-                    onViewHistory={(comp) => setActiveDialog(comp)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {complaints.map((c) => (
+                    <ComplaintCard
+                      key={c.id}
+                      complaint={c}
+                      onViewHistory={(comp) => setActiveDialog(comp)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
 
         {/* Footer */}
-        <footer className="border-t border-[var(--border)] pt-8 mt-16 text-center text-xs font-utility text-[var(--ink)] opacity-50">
+        <footer className="border-t border-[var(--border)] pt-8 text-center text-xs font-utility text-[var(--ink-muted)]">
           © 2026 SOCIETY-FIX. RESIDENT COMPLAINTS REGISTER.
         </footer>
       </main>

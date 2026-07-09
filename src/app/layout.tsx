@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
+import { Toaster } from "sonner";
+
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-space-grotesk",
@@ -36,6 +38,19 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} antialiased`}
       >
         {children}
+        <Toaster
+          theme="dark"
+          closeButton
+          toastOptions={{
+            style: {
+              background: "var(--surface)",
+              color: "var(--ink)",
+              border: "1px solid var(--border)",
+              fontFamily: "var(--font-utility)",
+              borderRadius: "6px",
+            },
+          }}
+        />
       </body>
     </html>
   );

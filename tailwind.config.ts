@@ -9,8 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        bg: "var(--bg)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        ink: "var(--ink)",
+        "ink-muted": "var(--ink-muted)",
+        accent: "var(--accent)",
+        "accent-hover": "var(--accent-hover)",
+        "status-open": "var(--status-open)",
+        "status-progress": "var(--status-progress)",
+        "status-resolved": "var(--status-resolved)",
+        border: "var(--border)",
       },
     },
   },
