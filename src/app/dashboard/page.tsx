@@ -56,6 +56,8 @@ interface Complaint {
   status: string;
   photo_url: string | null;
   created_at: string;
+  rating: number | null;
+  rating_comment: string | null;
   complaint_status_history?: StatusHistoryEntry[];
 }
 
@@ -92,6 +94,103 @@ function fmtDateTime(iso: string) {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+// ─── Rating Widget ───────────────────────────────────────────────────────────────
+function RatingWidget({
+  complaintId,
+  onRated,
+}: {
+  complaintId: string;
+  onRated: (id: string, rating: number, comment: string) => void;
+}) {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!selected) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/resident/rate-complaint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complaintId, rating: selected, comment }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setDone(true);
+      onRated(complaintId, selected, comment);
+      toast.success("THANK YOU — FEEDBACK RECORDED");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "COULD NOT SAVE RATING";
+      toast.error(msg.toUpperCase());
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="mt-3 pt-3 border-t border-dashed border-[var(--border)] flex items-center gap-2">
+        <span className="font-utility text-[10px] text-[var(--status-resolved)]">FEEDBACK RECEIVED ✔</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-dashed border-[var(--border)]">
+      <p className="font-utility text-[10px] text-[var(--ink-muted)] mb-2 tracking-wider">RATE RESOLUTION QUALITY</p>
+      <div className="flex gap-1 mb-2">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onMouseEnter={() => setHovered(s)}
+            onMouseLeave={() => setHovered(0)}
+            onClick={() => setSelected(s)}
+            className="text-[var(--border)] transition-colors"
+            aria-label={`Rate ${s} star${s > 1 ? "s" : ""}`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              className="w-5 h-5 transition-all duration-100"
+              fill={s <= (hovered || selected) ? "var(--accent)" : "none"}
+              stroke={s <= (hovered || selected) ? "var(--accent)" : "var(--border)"}
+              strokeWidth="1.5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+            </svg>
+          </button>
+        ))}
+        {selected > 0 && (
+          <span className="font-utility text-[10px] text-[var(--ink-muted)] ml-1 self-center">
+            {["POOR", "FAIR", "GOOD", "GREAT", "EXCELLENT"][selected - 1]}
+          </span>
+        )}
+      </div>
+      {selected > 0 && (
+        <textarea
+          rows={2}
+          className="input-minimal resize-none font-body text-xs mb-2"
+          placeholder="OPTIONAL: ADD A COMMENT..."
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      )}
+      <button
+        type="button"
+        disabled={!selected || submitting}
+        onClick={handleSubmit}
+        className="btn-minimal w-full text-xs py-1.5 disabled:opacity-40 rounded-[6px]"
+      >
+        {submitting ? "SAVING..." : "SUBMIT FEEDBACK"}
+      </button>
+    </div>
+  );
 }
 
 // ─── History Dialog ────────────────────────────────────────────────────────────
@@ -221,9 +320,11 @@ function HistoryDialog({
 function ComplaintCard({
   complaint,
   onViewHistory,
+  onRated,
 }: {
   complaint: Complaint;
   onViewHistory: (c: Complaint) => void;
+  onRated: (id: string, rating: number, comment: string) => void;
 }) {
   const priorityStyle: Record<string, string> = {
     High:   "border-[var(--status-open)] text-[var(--status-open)]",
@@ -286,6 +387,31 @@ function ComplaintCard({
             VIEW HISTORY →
           </button>
         </div>
+
+        {/* Rating widget — only for resolved, unrated complaints */}
+        {complaint.status.toLowerCase() === "resolved" && complaint.rating === null && (
+          <RatingWidget complaintId={complaint.id} onRated={onRated} />
+        )}
+
+        {/* Already rated — show stars */}
+        {complaint.status.toLowerCase() === "resolved" && complaint.rating !== null && (
+          <div className="mt-3 pt-3 border-t border-dashed border-[var(--border)] flex items-center gap-1.5">
+            <span className="font-utility text-[10px] text-[var(--ink-muted)]">YOUR RATING:</span>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <svg
+                key={s}
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className="w-3.5 h-3.5"
+                fill={s <= complaint.rating! ? "var(--accent)" : "none"}
+                stroke={s <= complaint.rating! ? "var(--accent)" : "var(--border)"}
+                strokeWidth="1.5"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+              </svg>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -355,6 +481,7 @@ export default function ResidentDashboard() {
         .from("complaints")
         .select(`
           id, category, priority, description, status, photo_url, created_at,
+          rating, rating_comment,
           complaint_status_history ( id, status, note, created_at )
         `)
         .eq("resident_id", user.id)
@@ -423,7 +550,7 @@ export default function ResidentDashboard() {
       return;
     }
 
-    setComplaints((prev) => [newComplaint as Complaint, ...prev]);
+            setComplaints((prev) => [newComplaint as Complaint, ...prev]);
     reset({ category: "Plumbing", priority: "Medium", description: "" });
     setPhotoPreview(null);
     toast.success("ENTRY DULY COMMITTED TO LEDGER REGISTER");
@@ -441,9 +568,9 @@ export default function ResidentDashboard() {
         />
       )}
 
-      <main className="min-h-[calc(100vh-64px)] py-12 px-4 md:px-6 max-w-[1280px] mx-auto flex flex-col gap-12">
+      <main className="h-[calc(100vh-64px)] flex flex-col px-4 md:px-6 max-w-[1280px] mx-auto overflow-hidden">
         {/* Page Header */}
-        <header className="border-b border-[var(--border)] pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <header className="border-b border-[var(--border)] py-5 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 flex-shrink-0">
           <div>
             <span className="utility-caps text-[var(--ink-muted)] font-semibold tracking-widest text-xs block mb-1">
               RESIDENT COMPLAINTS REGISTER
@@ -457,8 +584,9 @@ export default function ResidentDashboard() {
           </div>
         </header>
 
+        <div className="flex-1 overflow-hidden pt-6">
         {loadingData ? (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 h-full">
             <div className="lg:col-span-2 ledger-board bg-[var(--surface)] p-6 flex flex-col gap-4 animate-pulse">
               <Skeleton className="h-6 w-1/2" />
               <Skeleton className="h-10 w-full" />
@@ -477,9 +605,9 @@ export default function ResidentDashboard() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-            {/* Left: Raise Complaint Form */}
-            <section className="lg:col-span-2 ledger-board bg-[var(--surface)]">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 h-full">
+            {/* Left: Raise Complaint Form — sticky, does not scroll */}
+            <section className="lg:col-span-2 ledger-board bg-[var(--surface)] self-start sticky top-0 max-h-[calc(100vh-130px)] overflow-y-auto">
               <div className="bg-[var(--surface-2)] border-b border-[var(--border)] px-5 py-3">
                 <h2 className="font-display font-bold text-sm uppercase tracking-wide text-[var(--ink)]">
                   RAISE COMPLAINT ENTRY
@@ -608,8 +736,8 @@ export default function ResidentDashboard() {
               </div>
             </section>
 
-            {/* Right: Complaints List */}
-            <section className="lg:col-span-3 flex flex-col gap-4">
+            {/* Right: Complaints List — scrollable */}
+            <section className="lg:col-span-3 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-130px)] pr-1">
               <div className="flex items-center justify-between">
                 <h2 className="font-display font-bold text-xl uppercase tracking-tight text-[var(--ink)]">
                   MY COMPLAINT LOG
@@ -640,6 +768,15 @@ export default function ResidentDashboard() {
                       key={c.id}
                       complaint={c}
                       onViewHistory={(comp) => setActiveDialog(comp)}
+                      onRated={(id, rating, comment) => {
+                        setComplaints((prev) =>
+                          prev.map((comp) =>
+                            comp.id === id
+                              ? { ...comp, rating, rating_comment: comment }
+                              : comp
+                          )
+                        );
+                      }}
                     />
                   ))}
                 </div>
@@ -647,11 +784,7 @@ export default function ResidentDashboard() {
             </section>
           </div>
         )}
-
-        {/* Footer */}
-        <footer className="border-t border-[var(--border)] pt-8 text-center text-xs font-utility text-[var(--ink-muted)]">
-          © 2026 SOCIETY-FIX. RESIDENT COMPLAINTS REGISTER.
-        </footer>
+        </div>
       </main>
     </>
   );

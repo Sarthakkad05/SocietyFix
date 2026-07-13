@@ -1,37 +1,68 @@
 # Society-Fix Resident Portal & Administrative Journal
 
-A premium, high-aesthetic community management platform built on Next.js 14, Supabase, and Resend. Designed with a custom Concrete & Ink municipal ledger theme, it streamlines apartment maintenance tracking and critical announcements.
+![Society-Fix Banner](./path-to-banner-image.png)
+*(Note: Replace with a banner or hero image of the project)*
+
+Society-Fix is a premium, high-aesthetic community management platform built for modern campuses and residential societies. Designed with a custom "Concrete & Ink" municipal ledger theme, it streamlines apartment maintenance tracking, complaint resolution, and critical community announcements.
+
+The application features a seamless **Light & Dark mode** toggle, prioritizing robust data visualization, clean typography, and a dynamic user experience suitable for a professional assessment.
 
 ---
 
-## Features
+## 📸 Project Showcase
+
+*(Replace the placeholder image paths below with actual screenshots of your application to highlight your work in the assessment)*
+
+| Landing & Auth | Resident Dashboard |
+| :---: | :---: |
+| ![Landing Page](./path-to-landing-page.png)<br>*The main portal hub and directory.* | ![Resident Dashboard](./path-to-resident-dashboard.png)<br>*Resident complaint entry and history timeline.* |
+
+| Admin Analytics | Complaints Ledger |
+| :---: | :---: |
+| ![Admin Analytics](./path-to-admin-analytics.png)<br>*Data visualization, KPIs, and weekly trends.* | ![Complaints Ledger](./path-to-complaints-ledger.png)<br>*Master view with advanced filtering and CSV export.* |
+
+| Theme Toggle | Corkboard Notices |
+| :---: | :---: |
+| ![Light/Dark Mode](./path-to-theme-toggle.png)<br>*Dynamic Light and Dark mode UI.* | ![Notices](./path-to-notices.png)<br>*Community announcements pinboard.* |
+
+---
+
+## ✨ Key Features
 
 ### Resident Workspace (`/dashboard` & `/notices`)
 - **Portal Auth**: Secure signups collecting Full Name, Unit/Wing, and Phone metadata.
 - **Defect Ledger**: File repair requests (Plumbing, Electrical, Cleaning, etc.) validated via React Hook Form + Zod.
 - **Evidence Vault**: Secure image uploads to a dedicated Supabase Storage bucket.
 - **Chronological Timeline**: View interactive pop-up cards tracing the status and note history of filed issues.
-- **corkboard circulars**: A pinboard styled with hand-angled paper notes showing notices, prioritizing important updates at the top.
+- **Resolution Rating System**: Residents can rate resolved complaints (1-5 stars) and leave feedback.
+- **Corkboard Circulars**: A pinboard styled with hand-angled paper notes showing notices, prioritizing important updates at the top.
 
 ### Administrator Journal (`/admin` & `/admin/notices`)
-- **Master Ledger**: View all complaints, wing numbers, category badges, and filing dates.
-- **Active Sorting**: Open/Progress tickets older than 3 days are flagged `[OVERDUE]` and sorted to the top.
-- **Analytics widget**: Live summary counters and a Recharts bar graph plotting complaint distributions.
-- **Maintenance controls Sheet**: Alter priority tiers, log actions, and update statuses. Resolved tickets are permanently locked.
-- **Official notice boards**: Publish new announcements and broadcast batch email digests to all residents.
+- **Tabbed Interface**: Seamlessly switch between the Analytics dashboard and the Master Ledger.
+- **Analytics & Overview Tab**: Live summary counters, KPIs (Resolution Rate), Recharts bar graph for departmental distribution, and line charts for weekly filing trends.
+- **Master Ledger**: View all complaints, wing numbers, category badges, and filing dates with sticky layout structures and independent scrolling.
+- **Advanced Filtering & Search**: Filter the master ledger by Status, Category, Date range, and perform full-text searches across names, units, and descriptions.
+- **Data Export**: Export the filtered master ledger to CSV or print it as a formatted PDF.
+- **Maintenance Controls**: Alter priority tiers, log actions, and update statuses. Resolved tickets are permanently locked.
+- **Official Notice Boards**: Publish new announcements and broadcast batch email digests to all residents.
+
+### Platform Wide
+- **Theme Toggle**: Seamless switching between Light (default) and Dark mode, persisting user preference via `localStorage`.
+- **Responsive Layout**: Works flawlessly on both desktop and mobile devices.
 
 ---
 
-## Tech Stack
+## 🛠 Tech Stack
 - **Framework**: Next.js 14 (App Router, middleware-protected routes)
-- **Database / Auth**: Supabase Database & Supabase SSR Auth
+- **Database / Auth**: Supabase PostgreSQL & Supabase SSR Auth
 - **Email Service**: Resend SDK
-- **Forms**: React Hook Form + Zod
-- **Visuals**: Recharts, HSL Hues design system
+- **Forms & Validation**: React Hook Form + Zod
+- **Visuals**: Tailwind CSS, Recharts, Lucide React icons
+- **Theming**: CSS Variables (Light/Dark mode via `data-theme`)
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### 1. Database Setup (Supabase)
 Create a new Supabase project and execute the following SQL in the SQL Editor to build the schemas, trigger functions, and security policies:
@@ -54,7 +85,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read access to profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Allow individuals to update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
--- Create complaints table
+-- Create complaints table (includes rating columns)
 CREATE TABLE public.complaints (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     resident_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -64,6 +95,8 @@ CREATE TABLE public.complaints (
     description TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
     photo_url TEXT,
+    rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+    rating_comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -173,7 +206,7 @@ pnpm run build
 
 ---
 
-## API & Route Index
+## 🗺 API & Route Index
 
 ### Routing Controls
 - `/` - Landing Page / Portal Hub.
@@ -181,9 +214,10 @@ pnpm run build
 - `/signup` - Resident metadata registration panel.
 - `/dashboard` - Resident profile portal.
 - `/notices` - Community notice pinboard.
-- `/admin` - Superintendent workspace.
+- `/admin` - Superintendent workspace (Analytics & Ledger).
 - `/admin/notices` - Bulletin board notice management.
 
 ### Backend Endpoints
 - `POST /api/admin/update-status` - Changes priority/status, updates status history logs, fetches resident emails, and sends update alerts via Resend.
 - `POST /api/admin/create-notice` - Records notices in DB and dispatches circular notification digests to all residents.
+- `POST /api/resident/rate-complaint` - Allows residents to submit star ratings and feedback on resolved complaints.

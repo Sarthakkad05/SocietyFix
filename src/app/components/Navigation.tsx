@@ -4,13 +4,49 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { Menu, X, LogOut } from "lucide-react";
+import { Menu, X, LogOut, Sun, Moon } from "lucide-react";
 
 interface UserProfile {
   id: string;
   full_name: string;
   role: string;
   apartment_no: string | null;
+}
+
+// ─── Theme Toggle Button ───────────────────────────────────────────────────────
+function ThemeToggle() {
+  const [isDark, setIsDark] = useState(false);
+
+  // On mount, read persisted preference — default is light
+  useEffect(() => {
+    const saved = localStorage.getItem("sf-theme");
+    const dark = saved === "dark"; // only dark if explicitly saved as "dark"
+    setIsDark(dark);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  }, []);
+
+  const toggle = () => {
+    const next = !isDark;
+    setIsDark(next);
+    const theme = next ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("sf-theme", theme);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex items-center justify-center w-8 h-8 rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all duration-200"
+    >
+      {isDark
+        ? <Sun size={14} className="transition-transform duration-300" />
+        : <Moon size={14} className="transition-transform duration-300" />
+      }
+    </button>
+  );
 }
 
 export default function Navigation() {
@@ -52,7 +88,6 @@ export default function Navigation() {
   const isAdmin = profile?.role === "admin";
   const isResident = profile?.role === "resident";
 
-  // Build links based on role
   const links = [];
   if (profile) {
     if (isAdmin) {
@@ -105,10 +140,14 @@ export default function Navigation() {
               {link.label}
             </Link>
           ))}
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
+
           {profile && (
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 font-utility text-xs text-[var(--status-open)] hover:underline ml-2"
+              className="flex items-center gap-1.5 font-utility text-xs text-[var(--status-open)] hover:underline"
             >
               <LogOut size={13} />
               EXIT
@@ -118,6 +157,7 @@ export default function Navigation() {
 
         {/* Mobile menu trigger */}
         <div className="md:hidden flex items-center gap-3">
+          <ThemeToggle />
           {profile && (
             <button
               onClick={handleLogout}

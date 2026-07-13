@@ -3,12 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LineChart, Line } from "recharts";
 import Navigation from "@/app/components/Navigation";
 import { LedgerRowSkeleton, StatBlockSkeleton, Skeleton } from "@/app/components/Skeleton";
 import ConfirmDialog from "@/app/components/ConfirmDialog";
 import { toast } from "sonner";
-import { FileSearch, SlidersHorizontal } from "lucide-react";
+import { FileSearch, SlidersHorizontal, Download, Printer, Star } from "lucide-react";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 interface Profile {
@@ -34,8 +34,17 @@ interface Complaint {
   resident_id: string;
   profiles: Profile | Profile[] | null;
   complaint_status_history: ComplaintStatusHistory[];
+  rating: number | null;
+  rating_comment: string | null;
 }
-const OVERDUE_THRESHOLD_DAYS = 3;
+// SLA: flag complaints open for more than 3 days as overdue
+function isOverdue(comp: Complaint) {
+  if (comp.status.toLowerCase() === "resolved") return false;
+  const diffDays = Math.floor(
+    (Date.now() - new Date(comp.created_at).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return diffDays > 3;
+}
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
 function getStampClass(status: string) {
@@ -63,15 +72,6 @@ function fmtDateTime(iso: string) {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
-}
-
-function isOverdue(comp: Complaint) {
-  if (comp.status.toLowerCase() === "resolved") return false;
-  const createdDate = new Date(comp.created_at);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - createdDate.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays > OVERDUE_THRESHOLD_DAYS;
 }
 
 function getResidentName(comp: Complaint): string {
@@ -111,6 +111,9 @@ export default function AdminDashboard() {
   // Resolution Confirm dialog
   const [showConfirmResolve, setShowConfirmResolve] = useState(false);
 
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<"analytics" | "ledger">("analytics");
+
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Fetch complaints from Supabase
@@ -129,6 +132,8 @@ export default function AdminDashboard() {
           created_at,
           apartment_no,
           resident_id,
+          rating,
+          rating_comment,
           profiles:resident_id ( full_name ),
           complaint_status_history (
             id,
@@ -236,7 +241,13 @@ export default function AdminDashboard() {
   const openEditDialog = (comp: Complaint) => {
     setSelectedComplaint(comp);
     setNewPriority(comp.priority);
-    setNewStatus(comp.status);
+    // Normalize DB status value to match <option> values in the dropdown
+    const rawStatus = comp.status.toLowerCase();
+    const normalizedStatus =
+      rawStatus === "in progress" || rawStatus === "in_progress"
+        ? "progress"
+        : rawStatus; // "open" | "resolved" stay as-is
+    setNewStatus(normalizedStatus);
     setNote("");
   };
 
@@ -251,9 +262,63 @@ export default function AdminDashboard() {
   // Count aggregates based on current complaints list
   const totalComplaintsCount = complaints.length;
   const openCount = complaints.filter((c) => c.status.toLowerCase() === "open").length;
-  const progressCount = complaints.filter((c) => ["progress", "in_progress"].includes(c.status.toLowerCase())).length;
+  const progressCount = complaints.filter((c) => ["progress", "in_progress", "in progress"].includes(c.status.toLowerCase())).length;
   const resolvedCount = complaints.filter((c) => c.status.toLowerCase() === "resolved").length;
   const overdueCount = complaints.filter(isOverdue).length;
+  const resolutionRate = totalComplaintsCount > 0
+    ? Math.round((resolvedCount / totalComplaintsCount) * 100)
+    : 0;
+
+  // Weekly complaint trend — last 8 weeks
+  const weeklyTrendData = (() => {
+    const data: { week: string; Filed: number; Resolved: number }[] = [];
+    for (let i = 7; i >= 0; i--) {
+      const weekStart = new Date();
+      weekStart.setHours(0, 0, 0, 0);
+      weekStart.setDate(weekStart.getDate() - i * 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      const label = weekStart.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+      const filed = complaints.filter(c => {
+        const d = new Date(c.created_at);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+      const resolved = complaints.filter(c => {
+        const d = new Date(c.created_at);
+        return d >= weekStart && d < weekEnd && c.status.toLowerCase() === "resolved";
+      }).length;
+      data.push({ week: label, Filed: filed, Resolved: resolved });
+    }
+    return data;
+  })();
+
+  // Export filtered complaints to CSV
+  const exportToCSV = () => {
+    const headers = ["Ref ID", "Unit", "Resident", "Category", "Priority", "Status", "SLA Tier", "Rating", "Filed Date", "Description"];
+    const rows = filteredComplaints.map(c => {
+      const overdue = isOverdue(c);
+      return [
+        c.id,
+        c.apartment_no,
+        getResidentName(c),
+        c.category,
+        c.priority,
+        c.status,
+        overdue ? "OVERDUE" : "ON TIME",
+        c.rating ? `${c.rating}/5` : "—",
+        new Date(c.created_at).toLocaleDateString("en-IN"),
+        `"${c.description.replace(/"/g, '""')}"`,
+      ];
+    });
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `society-fix-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const categoriesList = ["Plumbing", "Electrical", "Cleaning", "Security", "Parking", "Other"];
   
@@ -263,7 +328,7 @@ export default function AdminDashboard() {
     return {
       category: cat.toUpperCase(),
       OPEN: catComps.filter((c) => c.status.toLowerCase() === "open").length,
-      PROGRESS: catComps.filter((c) => ["progress", "in_progress"].includes(c.status.toLowerCase())).length,
+      PROGRESS: catComps.filter((c) => ["progress", "in_progress", "in progress"].includes(c.status.toLowerCase())).length,
       RESOLVED: catComps.filter((c) => c.status.toLowerCase() === "resolved").length,
     };
   });
@@ -275,7 +340,7 @@ export default function AdminDashboard() {
     if (statusFilter !== "ALL") {
       const matchLower = statusFilter.toLowerCase();
       if (matchLower === "progress") {
-        if (!["progress", "in_progress"].includes(c.status.toLowerCase())) return false;
+        if (!["progress", "in_progress", "in progress"].includes(c.status.toLowerCase())) return false;
       } else if (c.status.toLowerCase() !== matchLower) {
         return false;
       }
@@ -285,7 +350,8 @@ export default function AdminDashboard() {
       const cleanedSearch = searchUnit.toLowerCase();
       const matchUnit = c.apartment_no.toLowerCase().includes(cleanedSearch);
       const matchName = getResidentName(c).toLowerCase().includes(cleanedSearch);
-      if (!matchUnit && !matchName) return false;
+      const matchDesc = c.description.toLowerCase().includes(cleanedSearch);
+      if (!matchUnit && !matchName && !matchDesc) return false;
     }
 
     if (startDate) {
@@ -423,6 +489,33 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* Resident Rating (if present) */}
+                {selectedComplaint.rating && (
+                  <div className="border-t border-[var(--border)] pt-4">
+                    <span className="utility-caps text-[10px] block text-[var(--ink-muted)] mb-2">RESIDENT SATISFACTION RATING</span>
+                    <div className="flex items-center gap-1 mb-1.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`w-4 h-4 ${
+                            s <= selectedComplaint.rating!
+                              ? "fill-[var(--accent)] text-[var(--accent)]"
+                              : "text-[var(--border)]"
+                          }`}
+                        />
+                      ))}
+                      <span className="font-utility text-[10px] text-[var(--ink-muted)] ml-2">
+                        {selectedComplaint.rating}/5
+                      </span>
+                    </div>
+                    {selectedComplaint.rating_comment && (
+                      <p className="font-body text-xs text-[var(--ink-muted)] italic leading-relaxed">
+                        &quot;{selectedComplaint.rating_comment}&quot;
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Update Form */}
@@ -537,6 +630,30 @@ export default function AdminDashboard() {
           </div>
         </header>
 
+        {/* Section Tab Navigation */}
+        <nav className="flex items-center border-b border-[var(--border)] gap-0 flex-shrink-0">
+          {([
+            { id: "analytics", label: "ANALYTICS & OVERVIEW" },
+            { id: "ledger",    label: "COMPLAINTS LEDGER" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative font-utility text-[11px] font-bold tracking-widest px-5 py-3 transition-colors ${
+                activeTab === tab.id
+                  ? "text-[var(--ink)]"
+                  : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--accent)] rounded-t-full" />
+              )}
+            </button>
+          ))}
+        </nav>
+
         {loadingData ? (
           <>
             {/* Stat skeletons */}
@@ -558,8 +675,10 @@ export default function AdminDashboard() {
           </>
         ) : (
           <>
+            {/* ── ANALYTICS TAB ─────────────────────────────────── */}
+            {activeTab === "analytics" && (<>
             {/* Ledger Stat blocks */}
-            <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="ledger-tab">
                 <span className="utility-caps text-[10px] text-[var(--ink-muted)]">TOTAL REGISTERED</span>
                 <div className="font-utility font-bold text-3xl mt-1 text-[var(--ink)]">
@@ -594,9 +713,19 @@ export default function AdminDashboard() {
                   {String(overdueCount).padStart(2, "0")}
                 </div>
               </div>
+
+              <div className="ledger-tab ledger-tab--accent">
+                <span className="utility-caps text-[10px] text-[var(--accent)] font-bold">RESOLUTION RATE</span>
+                <div className="font-utility font-bold text-3xl mt-1 text-[var(--accent)]">
+                  {resolutionRate}%
+                </div>
+                <div className="font-utility text-[9px] text-[var(--ink-muted)] mt-0.5">
+                  {resolvedCount}/{totalComplaintsCount} CLOSED
+                </div>
+              </div>
             </section>
 
-            {/* Category Report Graph */}
+            {/* Category Distribution Chart */}
             <section className="ledger-board p-6 bg-[var(--surface)]">
               <h2 className="text-xs font-bold font-display border-b border-[var(--border)] pb-3 mb-6 uppercase text-[var(--ink)] tracking-wider">
                 DEPARTMENTAL COMPLAINT DISTRIBUTION
@@ -618,6 +747,10 @@ export default function AdminDashboard() {
                           borderRadius: "6px"
                         }}
                       />
+                      <Legend
+                        wrapperStyle={{ fontSize: "10px", fontFamily: "var(--font-utility)", paddingTop: "12px" }}
+                        formatter={(value) => <span style={{ color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{value}</span>}
+                      />
                       <Bar dataKey="OPEN" stackId="status-stack" fill="var(--status-open)" barSize={30} />
                       <Bar dataKey="PROGRESS" stackId="status-stack" fill="var(--status-progress)" barSize={30} />
                       <Bar dataKey="RESOLVED" stackId="status-stack" fill="var(--status-resolved)" barSize={30} />
@@ -631,10 +764,50 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            {/* Admin Panel Details */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+            {/* Weekly Complaint Trend Chart */}
+            <section className="ledger-board p-6 bg-[var(--surface)]">
+              <h2 className="text-xs font-bold font-display border-b border-[var(--border)] pb-3 mb-6 uppercase text-[var(--ink)] tracking-wider">
+                WEEKLY FILING TREND — LAST 8 WEEKS
+              </h2>
+              <div className="w-full h-52">
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeklyTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="week" stroke="var(--ink-muted)" fontSize={9} tickLine={false} />
+                      <YAxis stroke="var(--ink-muted)" fontSize={9} tickLine={false} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          fontSize: "10px",
+                          fontFamily: "var(--font-body)",
+                          color: "var(--ink)",
+                          borderRadius: "6px"
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: "10px", fontFamily: "var(--font-utility)", paddingTop: "12px" }}
+                        formatter={(value) => <span style={{ color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{value}</span>}
+                      />
+                      <Line type="monotone" dataKey="Filed" stroke="var(--accent)" strokeWidth={2} dot={{ r: 3, fill: "var(--accent)" }} activeDot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="Resolved" stroke="var(--status-resolved)" strokeWidth={2} dot={{ r: 3, fill: "var(--status-resolved)" }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-utility text-xs text-[var(--ink-muted)]">
+                    PREPARING TREND MODEL...
+                  </div>
+                )}
+              </div>
+            </section>
+            </>)}
+
+            {/* ── LEDGER TAB ────────────────────────────────────── */}
+            {activeTab === "ledger" && (<>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start h-[calc(100vh-220px)]">
               {/* left column: filters */}
-              <section className="flex flex-col gap-6 lg:col-span-1">
+              <section className="flex flex-col gap-6 lg:col-span-1 sticky top-6 self-start">
                 <div className="ledger-board p-5 bg-[var(--surface)]">
                   <h2 className="text-sm font-bold border-b border-[var(--border)] pb-2 mb-4 uppercase text-[var(--ink)] tracking-wider flex items-center gap-2">
                     <SlidersHorizontal size={14} className="text-[var(--accent)]" />
@@ -681,13 +854,13 @@ export default function AdminDashboard() {
 
                     <div>
                       <label htmlFor="filter-search" className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">
-                        Search Unit / Name
+                        Search Unit / Name / Description
                       </label>
                       <input
                         id="filter-search"
                         type="text"
                         className="input-minimal font-utility"
-                        placeholder="E.g. B-402"
+                        placeholder="Unit, name, or keyword..."
                         value={searchUnit}
                         onChange={(e) => setSearchUnit(e.target.value)}
                       />
@@ -720,12 +893,39 @@ export default function AdminDashboard() {
                         onChange={(e) => setEndDate(e.target.value)}
                       />
                     </div>
+
+                    <div className="border-t border-dashed border-[var(--border)] my-1" />
+
+                    {/* Export Actions */}
+                    <div>
+                      <span className="utility-caps text-[10px] block mb-2 text-[var(--ink-muted)]">Export Data</span>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          id="export-csv-btn"
+                          type="button"
+                          onClick={exportToCSV}
+                          className="btn-minimal-secondary flex items-center justify-center gap-2 text-xs py-2 rounded-[6px]"
+                        >
+                          <Download size={12} />
+                          EXPORT CSV
+                        </button>
+                        <button
+                          id="print-pdf-btn"
+                          type="button"
+                          onClick={() => window.print()}
+                          className="btn-minimal-secondary flex items-center justify-center gap-2 text-xs py-2 rounded-[6px]"
+                        >
+                          <Printer size={12} />
+                          PRINT / PDF
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
 
               {/* right column: complaints ledger table */}
-              <section className="lg:col-span-3 flex flex-col gap-4">
+              <section className="lg:col-span-3 flex flex-col gap-4 overflow-y-auto h-full pr-1">
                 <h2 className="text-xl font-bold font-display uppercase text-[var(--ink)]">
                   COMPLAINTS MASTER LEDGER
                 </h2>
@@ -828,6 +1028,7 @@ export default function AdminDashboard() {
                 </div>
               </section>
             </div>
+            </>)}
           </>
         )}
 

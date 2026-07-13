@@ -3,24 +3,40 @@
 @tailwind utilities;
 
 :root {
-  /* Electric Indigo-Blue & Black Theme tokens */
-  --bg: #0A0A0A;        /* Primary background, near-black */
-  --surface: #141414;   /* Cards, nav bar, table rows, panels */
-  --surface-2: #1F1F1F; /* Hover/elevated state */
-  --ink: #F2F2F2;       /* Primary text */
-  --ink-muted: #8F8F8F; /* Secondary/meta text */
-  --border: #262626;    /* Hairline dividers */
-  --accent: #5B8DEF;    /* Secondary/electric indigo-blue */
-  --accent-hover: #4A7BDB;
-  --status-open: #E27960;
-  --status-progress: #7B9FD6;
-  --status-resolved: #7FB79A;
+  /* Light Theme (default) */
+  --bg: #F5F4F0;
+  --surface: #FFFFFF;
+  --surface-2: #EEECE8;
+  --ink: #111111;
+  --ink-muted: #666666;
+  --border: #D9D6CF;
+  --accent: #3B6FE0;
+  --accent-hover: #2A5EC8;
+  --status-open: #C0392B;
+  --status-progress: #2C5F9B;
+  --status-resolved: #2E7D55;
 
   /* Font mappings from Next.js Layout */
   --font-display: var(--font-space-grotesk), sans-serif;
   --font-body: var(--font-ibm-plex-sans), sans-serif;
   --font-utility: var(--font-ibm-plex-mono), monospace;
 }
+
+/* ── Dark Theme ───────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg: #0A0A0A;
+  --surface: #141414;
+  --surface-2: #1F1F1F;
+  --ink: #F2F2F2;
+  --ink-muted: #8F8F8F;
+  --border: #262626;
+  --accent: #5B8DEF;
+  --accent-hover: #4A7BDB;
+  --status-open: #E27960;
+  --status-progress: #7B9FD6;
+  --status-resolved: #7FB79A;
+}
+
 
 body {
   color: var(--ink);
@@ -398,5 +414,71 @@ h1, h2, h3, h4, h5, h6 {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ── Print / PDF Styles ────────────────────────────────────────────── */
+@media print {
+  /* Reset background to white for print */
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f5f5f5;
+    --ink: #111111;
+    --ink-muted: #555555;
+    --border: #cccccc;
+    --accent: #3355bb;
+    --status-open: #cc4433;
+    --status-progress: #336699;
+    --status-resolved: #336644;
+  }
+
+  body { background: #fff; color: #111; }
+
+  /* Hide non-essential elements when printing */
+  nav,
+  [data-print-hide],
+  #export-csv-btn,
+  #print-pdf-btn,
+  button:not([data-print-show]),
+  .fixed,
+  footer {
+    display: none !important;
+  }
+
+  /* Ensure main content fills the page */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Force ledger boards to print with borders */
+  .ledger-board {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  /* Ledger rows should not break across pages */
+  .ledger-row,
+  [class*="divide-y"] > div {
+    break-inside: avoid;
+  }
+
+  /* Charts: hide them in print (they rely on JS sizing) */
+  section:has(canvas),
+  .recharts-responsive-container {
+    display: none !important;
+  }
+
+  /* Print page title */
+  header::before {
+    content: "SOCIETY-FIX — COMPLAINTS REGISTER REPORT";
+    display: block;
+    font-family: monospace;
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 4px;
   }
 }
