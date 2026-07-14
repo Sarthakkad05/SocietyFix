@@ -1,33 +1,42 @@
 # Society-Fix Resident Portal & Administrative Journal
 
-![Society-Fix Banner](./path-to-banner-image.png)
-*(Note: Replace with a banner or hero image of the project)*
-
 Society-Fix is a premium, high-aesthetic community management platform built for modern campuses and residential societies. Designed with a custom "Concrete & Ink" municipal ledger theme, it streamlines apartment maintenance tracking, complaint resolution, and critical community announcements.
 
 The application features a seamless **Light & Dark mode** toggle, prioritizing robust data visualization, clean typography, and a dynamic user experience suitable for a professional assessment.
 
----
-
-## 📸 Project Showcase
-
-*(Replace the placeholder image paths below with actual screenshots of your application to highlight your work in the assessment)*
-
-| Landing & Auth | Resident Dashboard |
-| :---: | :---: |
-| ![Landing Page](./path-to-landing-page.png)<br>*The main portal hub and directory.* | ![Resident Dashboard](./path-to-resident-dashboard.png)<br>*Resident complaint entry and history timeline.* |
-
-| Admin Analytics | Complaints Ledger |
-| :---: | :---: |
-| ![Admin Analytics](./path-to-admin-analytics.png)<br>*Data visualization, KPIs, and weekly trends.* | ![Complaints Ledger](./path-to-complaints-ledger.png)<br>*Master view with advanced filtering and CSV export.* |
-
-| Theme Toggle | Corkboard Notices |
-| :---: | :---: |
-| ![Light/Dark Mode](./path-to-theme-toggle.png)<br>*Dynamic Light and Dark mode UI.* | ![Notices](./path-to-notices.png)<br>*Community announcements pinboard.* |
+<img width="1470" height="671" alt="Screenshot 2026-07-14 at 9 31 21 PM" src="https://github.com/user-attachments/assets/11c02886-cdcf-4179-95d5-cc95dbad8193" />
 
 ---
 
-## ✨ Key Features
+## 🔍Project Showcase
+
+### Resident Complaint Portal
+<img width="1196" height="749" alt="Screenshot 2026-07-14 at 9 34 01 PM" src="https://github.com/user-attachments/assets/08c2865b-a276-4064-a2a8-894d5ac0535b" />
+
+### Complaint Management Dashboard + Export
+<img width="944" height="692" alt="Screenshot 2026-07-14 at 9 33 23 PM" src="https://github.com/user-attachments/assets/3d818d2b-5265-4275-9b45-0b9f216e0343" />
+
+### Complaint Details & Status Update
+<img width="1285" height="824" alt="Screenshot 2026-07-14 at 9 34 42 PM" src="https://github.com/user-attachments/assets/38c4c2ea-e071-4614-a636-a8be032ff9a0" />
+
+### Administrative Analytics Dashboard
+<img width="868" height="690" alt="Screenshot 2026-07-14 at 9 33 15 PM" src="https://github.com/user-attachments/assets/bbce4308-6e1b-499b-aab8-71f00b181708" />
+
+### Automated Email Notification System
+<img width="1470" height="799" alt="Screenshot 2026-07-14 at 9 35 35 PM" src="https://github.com/user-attachments/assets/ca2bf790-2510-443b-b0f4-21b0cd803022" />
+
+### Administrator Notice Management
+<img width="1423" height="642" alt="Screenshot 2026-07-14 at 9 32 46 PM" src="https://github.com/user-attachments/assets/020ba04b-a1c6-4560-9f15-4495d6d412a7" />
+
+### Resident Community Notice Board
+<img width="1406" height="770" alt="Screenshot 2026-07-14 at 9 32 57 PM" src="https://github.com/user-attachments/assets/1269af86-449c-48d0-9565-ebe3f99c3aa0" />
+
+
+
+
+---
+
+## 💪Key Features
 
 ### Resident Workspace (`/dashboard` & `/notices`)
 - **Portal Auth**: Secure signups collecting Full Name, Unit/Wing, and Phone metadata.
@@ -302,36 +311,13 @@ pnpm run build
 
 ---
 
-## 🗺 API & Route Index
+## 🚀 Deployment
 
-### Routing Controls
-- `/` - Landing Page / Portal Hub.
-- `/login` - Concrete-Ink login screen.
-- `/signup` - Resident metadata registration panel.
-- `/dashboard` - Resident profile portal.
-- `/notices` - Community notice pinboard.
-- `/admin` - Superintendent workspace (Analytics & Ledger).
-- `/admin/notices` - Bulletin board notice management.
-
-### Backend Endpoints
-- `POST /api/admin/update-status` - Changes priority/status, updates status history logs, fetches resident emails, and sends update alerts via Resend.
-- `POST /api/admin/create-notice` - Records notices in DB and dispatches circular notification digests to all residents.
-- `POST /api/resident/rate-complaint` - Allows residents to submit star ratings and feedback on resolved complaints.
-
----
-
-## 🎨 Design Decisions & UI/UX Philosophy
-- **Aesthetic**: Opted for a "Concrete & Ink" municipal ledger aesthetic rather than a generic SaaS dashboard. This gives the application a premium, official, and authoritative feel appropriate for estate management.
-- **Typography**: Used `IBM Plex Mono` for tabular data, dates, and timestamps to ensure numbers align perfectly in the ledger, while using `Space Grotesk` for headers to provide a modern edge.
-- **Accessibility**: Implemented a CSS variable-based Theme Toggle. The light mode uses a warm, parchment-like off-white (`#F5F4F0`) instead of harsh pure white, reducing eye strain for administrators viewing the screen for long periods.
-
----
-
-## 🚧 Challenges Faced & Solutions
-- **Challenge**: Enforcing secure, role-based data access (ensuring residents cannot view each other's complaints or access the admin panel).
-- **Solution**: Implemented strict **Row Level Security (RLS)** policies directly within the Supabase PostgreSQL database. Even if a user attempts to fetch data via the API, the database natively rejects unauthorized requests based on their JWT token role, rather than relying solely on fragile frontend hiding techniques.
-- **Challenge**: Managing complex, synchronized state in the Admin Master Ledger (filtering by status, category, date, and full-text search) without causing excessive re-renders.
-- **Solution**: Handled primary data fetching server-side, and utilized Next.js client components with memoized filter functions to instantly narrow down the data on the client side, ensuring a snappy, zero-latency search experience.
+This project is optimized for deployment on Vercel. 
+1. Push the code to a GitHub repository.
+2. Import the project in Vercel.
+3. Add the environment variables listed in `.env.local` to the Vercel project settings.
+4. Deploy (Vercel automatically detects Next.js and configures the build settings).
 
 ---
 
@@ -353,25 +339,25 @@ src/
 
 ---
 
-## 🚀 Deployment
 
-This project is optimized for deployment on Vercel. 
-1. Push the code to a GitHub repository.
-2. Import the project in Vercel.
-3. Add the environment variables listed in `.env.local` to the Vercel project settings.
-4. Deploy (Vercel automatically detects Next.js and configures the build settings).
+## 🎨 Design Decisions & UI/UX Philosophy
+- **Aesthetic**: Opted for a "Concrete & Ink" municipal ledger aesthetic rather than a generic SaaS dashboard. This gives the application a premium, official, and authoritative feel appropriate for estate management.
+- **Typography**: Used `IBM Plex Mono` for tabular data, dates, and timestamps to ensure numbers align perfectly in the ledger, while using `Space Grotesk` for headers to provide a modern edge.
+- **Accessibility**: Implemented a CSS variable-based Theme Toggle. The light mode uses a warm, parchment-like off-white (`#F5F4F0`) instead of harsh pure white, reducing eye strain for administrators viewing the screen for long periods.
 
 ---
+
+## 🚧 Challenges Faced & Solutions
+- **Challenge**: Enforcing secure, role-based data access (ensuring residents cannot view each other's complaints or access the admin panel).
+- **Solution**: Implemented strict **Row Level Security (RLS)** policies directly within the Supabase PostgreSQL database. Even if a user attempts to fetch data via the API, the database natively rejects unauthorized requests based on their JWT token role, rather than relying solely on fragile frontend hiding techniques.
+- **Challenge**: Managing complex, synchronized state in the Admin Master Ledger (filtering by status, category, date, and full-text search) without causing excessive re-renders.
+- **Solution**: Handled primary data fetching server-side, and utilized Next.js client components with memoized filter functions to instantly narrow down the data on the client side, ensuring a snappy, zero-latency search experience.
+
+---
+
 
 ## 🔮 Future Roadmap (v2.0)
 - **AI-Powered Categorization**: Automatically assign categories to complaints based on the resident's text description using an LLM.
 - **Push Notifications**: Convert the platform into a Progressive Web App (PWA) to send mobile push notifications for urgent circulars.
 - **Vendor Portal**: Add a third role (`vendor`) to allow third-party contractors to log in and mark assigned tickets as completed.
 
----
-
-## 👨‍💻 Author
-**[Your Name / Team Name]**  
-*Computer Science / Software Engineering*  
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your Profile](https://linkedin.com/in/yourprofile)
