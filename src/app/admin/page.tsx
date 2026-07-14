@@ -605,8 +605,14 @@ export default function AdminDashboard() {
         {/* Top Header */}
         <header className="border-b border-[var(--border)] pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)] mt-1 uppercase">
-              ADMIN: {currentUser.name}
+            <span className="utility-caps text-[var(--ink-muted)] font-semibold tracking-widest text-xs block mb-1">
+              ADMINISTRATOR BOARD REGISTER
+            </span>
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)] flex items-center gap-3 uppercase">
+              {currentUser.name}
+              <span className="font-utility text-sm font-bold px-2 py-0.5 border border-[var(--ink)] bg-[var(--ink)] text-[var(--bg)] rounded-[6px]">
+                ADMIN
+              </span>
             </h1>
           </div>
         </header>
