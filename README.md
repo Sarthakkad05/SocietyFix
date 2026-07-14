@@ -52,6 +52,102 @@ The application features a seamless **Light & Dark mode** toggle, prioritizing r
 
 ---
 
+## 🏗 Architecture
+
+Society-Fix is built on a modern, decoupled architecture leveraging the Next.js App Router for server-side rendering (SSR) and seamless API integration.
+
+```mermaid
+graph TD
+    %% Clients
+    Resident["🧑‍💻 Resident (Browser)"]
+    Admin["👮‍♂️ Admin (Browser)"]
+
+    %% Next.js Application
+    subgraph "Next.js 14 App (Vercel/Node)"
+        UI["React Server & Client Components"]
+        API["Next.js Route Handlers (/api/*)"]
+        Middleware["Auth Middleware"]
+        
+        Resident -->|Interacts| UI
+        Admin -->|Interacts| UI
+        
+        UI -->|Validates Route| Middleware
+        UI -->|Fetches/Posts| API
+    end
+
+    %% External Services
+    subgraph "Supabase Platform"
+        Auth["Supabase Auth (JWT)"]
+        DB[(PostgreSQL Database)]
+        Storage["Object Storage (Images)"]
+    end
+    
+    subgraph "Third-Party Services"
+        Resend["Resend (Email Service)"]
+    end
+
+    %% Connections
+    Middleware -.->|Verifies Session| Auth
+    API <-->|SQL/ORM Queries| DB
+    UI -->|Direct Upload| Storage
+    API -->|Triggers Email| Resend
+```
+
+The system is organized into three primary layers:
+1. **Presentation Layer**: Built with React (Client and Server Components). Tailwind CSS provides the atomic styling, while Recharts handles the dashboard analytics rendering.
+2. **Application & API Layer**: Next.js route handlers manage sensitive operations like updating complaint statuses and broadcasting email notices, keeping API keys (like Resend) secure on the server. Next.js Middleware intercepts requests to enforce role-based access control (RBAC), ensuring residents cannot access the `/admin` workspace.
+3. **Data Layer**: Supabase acts as the backend-as-a-service. It handles PostgreSQL database hosting, Row Level Security (RLS) policies to protect resident data, Authentication (JWT), and Object Storage for evidence photos.
+
+---
+
+## 🔄 Data Flow
+
+The data flow ensures that resident actions are immediately reflected in the database and that administrators are equipped to take action while residents are kept in the loop via automated emails.
+
+### 1. Filing a Complaint & Uploading Evidence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Resident
+    participant UI as Dashboard UI
+    participant S3 as Supabase Storage
+    participant DB as Supabase DB
+
+    R->>UI: Fills Complaint Form & Attaches Photo
+    UI->>UI: Validates with Zod schema
+    UI->>S3: Uploads Photo (if provided)
+    S3-->>UI: Returns Public Image URL
+    UI->>DB: Inserts Complaint (Category, Desc, Image URL)
+    DB-->>UI: Returns newly created Complaint record
+    UI-->>R: Updates UI State (Adds to Log)
+```
+
+### 2. Admin Resolution & Automated Notifications
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Admin
+    participant UI as Admin Ledger
+    participant API as Next.js API (/api/admin/update-status)
+    participant DB as Supabase DB
+    participant R as Resend API
+    actor Res as Resident (Email)
+
+    A->>UI: Clicks "Mark Resolved" on a Complaint
+    UI->>API: POST { complaintId, status: "resolved", note }
+    API->>DB: Updates Complaint Status
+    API->>DB: Inserts new record into Status History
+    DB-->>API: Returns success & Resident's Profile Data
+    API->>R: Sends Email payload (Resident Email, Update Note)
+    R-->>Res: Delivers "Complaint Resolved" Email
+    API-->>UI: Returns 200 OK
+    UI-->>A: Removes complaint from "Open" counters
+```
+
+---
+
 ## 🛠 Tech Stack
 - **Framework**: Next.js 14 (App Router, middleware-protected routes)
 - **Database / Auth**: Supabase PostgreSQL & Supabase SSR Auth
@@ -221,3 +317,61 @@ pnpm run build
 - `POST /api/admin/update-status` - Changes priority/status, updates status history logs, fetches resident emails, and sends update alerts via Resend.
 - `POST /api/admin/create-notice` - Records notices in DB and dispatches circular notification digests to all residents.
 - `POST /api/resident/rate-complaint` - Allows residents to submit star ratings and feedback on resolved complaints.
+
+---
+
+## 🎨 Design Decisions & UI/UX Philosophy
+- **Aesthetic**: Opted for a "Concrete & Ink" municipal ledger aesthetic rather than a generic SaaS dashboard. This gives the application a premium, official, and authoritative feel appropriate for estate management.
+- **Typography**: Used `IBM Plex Mono` for tabular data, dates, and timestamps to ensure numbers align perfectly in the ledger, while using `Space Grotesk` for headers to provide a modern edge.
+- **Accessibility**: Implemented a CSS variable-based Theme Toggle. The light mode uses a warm, parchment-like off-white (`#F5F4F0`) instead of harsh pure white, reducing eye strain for administrators viewing the screen for long periods.
+
+---
+
+## 🚧 Challenges Faced & Solutions
+- **Challenge**: Enforcing secure, role-based data access (ensuring residents cannot view each other's complaints or access the admin panel).
+- **Solution**: Implemented strict **Row Level Security (RLS)** policies directly within the Supabase PostgreSQL database. Even if a user attempts to fetch data via the API, the database natively rejects unauthorized requests based on their JWT token role, rather than relying solely on fragile frontend hiding techniques.
+- **Challenge**: Managing complex, synchronized state in the Admin Master Ledger (filtering by status, category, date, and full-text search) without causing excessive re-renders.
+- **Solution**: Handled primary data fetching server-side, and utilized Next.js client components with memoized filter functions to instantly narrow down the data on the client side, ensuring a snappy, zero-latency search experience.
+
+---
+
+## 📂 Folder Structure Overview
+
+```text
+src/
+├── app/
+│   ├── admin/             # Protected admin workspace & Recharts dashboard
+│   ├── api/               # Next.js Serverless Route Handlers (Resend, Supabase admin)
+│   ├── components/        # Reusable UI (Navigation, Skeleton loaders, Dialogs)
+│   ├── dashboard/         # Protected resident workspace
+│   ├── login/             # Auth interface
+│   ├── notices/           # Community pinboard
+│   └── globals.css        # Tailwind config, theme variables, and global styles
+├── utils/
+│   └── supabase/          # Supabase client/server/middleware instantiations
+```
+
+---
+
+## 🚀 Deployment
+
+This project is optimized for deployment on Vercel. 
+1. Push the code to a GitHub repository.
+2. Import the project in Vercel.
+3. Add the environment variables listed in `.env.local` to the Vercel project settings.
+4. Deploy (Vercel automatically detects Next.js and configures the build settings).
+
+---
+
+## 🔮 Future Roadmap (v2.0)
+- **AI-Powered Categorization**: Automatically assign categories to complaints based on the resident's text description using an LLM.
+- **Push Notifications**: Convert the platform into a Progressive Web App (PWA) to send mobile push notifications for urgent circulars.
+- **Vendor Portal**: Add a third role (`vendor`) to allow third-party contractors to log in and mark assigned tickets as completed.
+
+---
+
+## 👨‍💻 Author
+**[Your Name / Team Name]**  
+*Computer Science / Software Engineering*  
+- GitHub: [@yourusername](https://github.com/yourusername)
+- LinkedIn: [Your Profile](https://linkedin.com/in/yourprofile)
