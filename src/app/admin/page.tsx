@@ -37,14 +37,7 @@ interface Complaint {
   rating: number | null;
   rating_comment: string | null;
 }
-// SLA: flag complaints open for more than 3 days as overdue
-function isOverdue(comp: Complaint) {
-  if (comp.status.toLowerCase() === "resolved") return false;
-  const diffDays = Math.floor(
-    (Date.now() - new Date(comp.created_at).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return diffDays > 3;
-}
+
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
 function getStampClass(status: string) {
@@ -264,7 +257,6 @@ export default function AdminDashboard() {
   const openCount = complaints.filter((c) => c.status.toLowerCase() === "open").length;
   const progressCount = complaints.filter((c) => ["progress", "in_progress", "in progress"].includes(c.status.toLowerCase())).length;
   const resolvedCount = complaints.filter((c) => c.status.toLowerCase() === "resolved").length;
-  const overdueCount = complaints.filter(isOverdue).length;
   const resolutionRate = totalComplaintsCount > 0
     ? Math.round((resolvedCount / totalComplaintsCount) * 100)
     : 0;
@@ -294,9 +286,8 @@ export default function AdminDashboard() {
 
   // Export filtered complaints to CSV
   const exportToCSV = () => {
-    const headers = ["Ref ID", "Unit", "Resident", "Category", "Priority", "Status", "SLA Tier", "Rating", "Filed Date", "Description"];
+    const headers = ["Ref ID", "Unit", "Resident", "Category", "Priority", "Status", "Rating", "Filed Date", "Description"];
     const rows = filteredComplaints.map(c => {
-      const overdue = isOverdue(c);
       return [
         c.id,
         c.apartment_no,
@@ -304,7 +295,6 @@ export default function AdminDashboard() {
         c.category,
         c.priority,
         c.status,
-        overdue ? "OVERDUE" : "ON TIME",
         c.rating ? `${c.rating}/5` : "—",
         new Date(c.created_at).toLocaleDateString("en-IN"),
         `"${c.description.replace(/"/g, '""')}"`,
@@ -368,14 +358,8 @@ export default function AdminDashboard() {
     return true;
   });
 
-  // Overdue and Date Sort: Overdue items sorted to top. Secondary sort is created_at descending.
+  // Default Sort: created_at descending
   const sortedComplaints = [...filteredComplaints].sort((a, b) => {
-    const aOverdue = isOverdue(a);
-    const bOverdue = isOverdue(b);
-
-    if (aOverdue && !bOverdue) return -1;
-    if (!aOverdue && bOverdue) return 1;
-
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
@@ -621,11 +605,8 @@ export default function AdminDashboard() {
         {/* Top Header */}
         <header className="border-b border-[var(--border)] pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <span className="utility-caps text-[var(--ink-muted)] font-semibold tracking-widest text-xs">
-              ADMINISTRATOR BOARD REGISTER
-            </span>
-            <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)] mt-1">
-              SUPERINTENDENT JOURNAL
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--ink)] mt-1 uppercase">
+              ADMIN: {currentUser.name}
             </h1>
           </div>
         </header>
@@ -704,13 +685,6 @@ export default function AdminDashboard() {
                 <span className="utility-caps text-[10px] text-[var(--status-resolved)] font-bold">RESOLVED</span>
                 <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-resolved)]">
                   {String(resolvedCount).padStart(2, "0")}
-                </div>
-              </div>
-
-              <div className="ledger-tab border-[var(--status-open)] border-t-4">
-                <span className="utility-caps text-[10px] text-[var(--status-open)] font-bold animate-pulse">★ OVERDUE</span>
-                <div className="font-utility font-bold text-3xl mt-1 text-[var(--status-open)]">
-                  {String(overdueCount).padStart(2, "0")}
                 </div>
               </div>
 
@@ -925,14 +899,14 @@ export default function AdminDashboard() {
               </section>
 
               {/* right column: complaints ledger table */}
-              <section className="lg:col-span-3 flex flex-col gap-4 overflow-y-auto h-full pr-1">
-                <h2 className="text-xl font-bold font-display uppercase text-[var(--ink)]">
+              <section className="lg:col-span-3 flex flex-col gap-4 h-full overflow-hidden">
+                <h2 className="text-xl font-bold font-display uppercase text-[var(--ink)] shrink-0">
                   COMPLAINTS MASTER LEDGER
                 </h2>
 
-                <div className="ledger-board">
+                <div className="ledger-board flex flex-col overflow-hidden h-full">
                   {/* Header - Hidden on mobile */}
-                  <div className="hidden md:grid ledger-header border-b border-[var(--border)]">
+                  <div className="hidden md:grid ledger-header border-b border-[var(--border)] shrink-0">
                     <span>UNIT</span>
                     <span>ENTRY DETAILS & RESIDENT</span>
                     <span>DATE</span>
@@ -941,7 +915,7 @@ export default function AdminDashboard() {
 
                   {/* List */}
                   {sortedComplaints.length === 0 ? (
-                    <div className="p-8 text-center bg-[var(--surface)] flex flex-col items-center gap-4">
+                    <div className="p-8 text-center bg-[var(--surface)] flex flex-col items-center gap-4 overflow-y-auto">
                       <FileSearch className="w-10 h-10 text-[var(--ink-muted)] opacity-50" />
                       <div>
                         <p className="font-utility text-xs text-[var(--ink)] uppercase tracking-wider font-semibold">
@@ -953,9 +927,8 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   ) : (
-                    <div className="divide-y divide-[var(--border)] bg-[var(--surface)]">
+                    <div className="divide-y divide-[var(--border)] bg-[var(--surface)] overflow-y-auto pr-1">
                       {sortedComplaints.map((comp) => {
-                        const isCompOverdue = isOverdue(comp);
                         return (
                           <div
                             key={comp.id}
@@ -989,11 +962,6 @@ export default function AdminDashboard() {
                                 }`}>
                                   {comp.priority.toUpperCase()}
                                 </span>
-                                {isCompOverdue && (
-                                  <span className="font-utility text-[9px] font-bold tracking-wider px-1.5 py-0.5 bg-[var(--status-open)] text-white rounded-[4px] animate-pulse">
-                                    OVERDUE
-                                  </span>
-                                )}
                                 <span className="font-utility text-[10px] text-[var(--ink-muted)] opacity-60">
                                   REF: {comp.id.substring(0, 8)}
                                 </span>
