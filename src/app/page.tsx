@@ -1,43 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
-import { createAdminClient } from "@/utils/supabase/admin";
 import Navigation from "@/app/components/Navigation";
 
 export default async function Home() {
-  const supabase = createAdminClient();
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("apartment_no, role");
-
-  const dbProfiles = profiles || [];
-
-  const directory = dbProfiles
-    .filter((p) => p.apartment_no)
-    .map((p) => {
-      // Determine floor from unit digits (e.g. A-402 -> floor 04, B-301 -> floor 03)
-      let floorStr = "01";
-      const digitsMatch = p.apartment_no.match(/\d+/);
-      if (digitsMatch) {
-        const digits = digitsMatch[0];
-        if (digits.length >= 3) {
-          floorStr = String(digits.substring(0, digits.length - 2)).padStart(2, "0");
-        } else if (digits.length > 0) {
-          floorStr = String(digits[0]).padStart(2, "0");
-        }
-      }
-
-      return {
-        floor: floorStr,
-        unit: p.apartment_no.toUpperCase(),
-        status: p.role.toUpperCase(),
-      };
-    })
-    .sort((a, b) => {
-      if (b.floor !== a.floor) {
-        return b.floor.localeCompare(a.floor);
-      }
-      return a.unit.localeCompare(b.unit);
-    });
 
   return (
     <>
