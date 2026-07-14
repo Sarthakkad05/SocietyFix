@@ -1,5 +1,7 @@
 # Society-Fix Resident Portal & Administrative Journal
 
+### Live - https://society-fix-pi.vercel.app/
+
 Society-Fix is a premium, high-aesthetic community management platform built for modern campuses and residential societies. Designed with a custom "Concrete & Ink" municipal ledger theme, it streamlines apartment maintenance tracking, complaint resolution, and critical community announcements.
 
 The application features a seamless **Light & Dark mode** toggle, prioritizing robust data visualization, clean typography, and a dynamic user experience suitable for a professional assessment.
